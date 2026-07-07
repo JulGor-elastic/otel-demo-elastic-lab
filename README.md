@@ -98,38 +98,28 @@ Prometheus keeps metrics locally for **30 minutes** (configurable via `prometheu
 
 Default data stream: `metrics-otel_demo.prometheus-default` (set `prometheus_data_stream_dataset` to match ES; PRW maps hyphens to underscores). Override namespace with `prometheus_data_stream_namespace`.
 
-Grafana dashboards include a **Data Source** variable (`DS_PROMETHEUS`). After deploy, switch between **Prometheus** (in-cluster) and **Elasticsearch** (PRW via PromQL API) to compare the same metrics. Requires `elastic_es_endpoint` in `vars.yml`. See `llm-context/grafana_dashboards.md`.
+Grafana dashboards include a **Data Source** variable (`DS_PROMETHEUS`). After deploy, switch between **Prometheus** (in-cluster) and **Elasticsearch** (PRW via PromQL API) to compare the same metrics. Requires `elastic_es_endpoint` in `vars.yml`.
 
 ## Demo scenarios (Phase 4)
 
-Trigger incident / recovery scripts on the lab VM from **Elastic Workflows** in Serverless, without exposing inbound ports:
-
-```
-Kibana Workflows  →  GitHub API (workflow_dispatch)  →  self-hosted runner on VM  →  kubectl
-```
+Orchestrate incident and recovery scripts on the lab VM from **GitHub Actions** or **Elastic Serverless Workflows**, without inbound access to the VM.
 
 | Scenario | Effect |
 |----------|--------|
-| `incident-payment` | Scale `payment` to 0 — checkout fails, orders KPI flatlines |
+| `incident-payment` | Scale `payment` to 0 — checkout fails |
 | `recover-payment` | Restore `payment` |
 | `oom-pressure` | Lower `fraud-detection` memory → OOMKill |
 | `reset-lab` | Full stable-state restore |
 
-### Local run (Ansible → VM)
+**Full setup guide (fork, runner, GitHub Actions, Kibana Workflows):**  
+→ **[docs/demo-scenarios-setup.md](docs/demo-scenarios-setup.md)**
+
+Quick local test (Ansible → VM):
 
 ```bash
 make demo-scenario-incident-payment
 make demo-scenario-reset-lab
 ```
-
-### Elastic Workflows setup
-
-1. Push this repo to GitHub.
-2. On the VM: install self-hosted runner (`scripts/github/install-runner.sh`).
-3. Create GitHub HTTP connector in Kibana; set `github_http_connector_id` in `vars.yml`.
-4. Deploy workflows: `./scripts/workflows/deploy-workflows.sh` (needs `kibana_url` + API key).
-
-Details: `llm-context/phase4_remote_control.md`.
 
 ## Makefile targets
 
@@ -164,6 +154,8 @@ Configured in `vars.yml` (see `vars.yml.example`):
 │   ├── scenarios/                # Phase 4 demo scenarios (kubectl)
 │   ├── workflows/                # Elastic Workflows YAML + deploy scripts
 │   └── github/install-runner.sh  # Self-hosted Actions runner setup
+├── docs/
+│   └── demo-scenarios-setup.md   # Phase 4: fork, runner, Workflows (full guide)
 ├── vars.yml.example        # Elastic / Helm configuration template
 ├── hosts.ini.example       # Ansible inventory template
 ├── config.mk.example       # Local GCP / SSH overrides template
@@ -180,7 +172,7 @@ Configured in `vars.yml` (see `vars.yml.example`):
 
 - ~~Prometheus Remote Write → Elastic~~ (implemented)
 - ~~Grafana in-cluster~~ (implemented; dashboard migration to Kibana pending)
-- ~~Demo scenarios + Elastic Workflows~~ (Phase 4 — scripts + workflow YAML; runner setup manual)
+- ~~Demo scenarios + Elastic Workflows~~ (Phase 4 — see [docs/demo-scenarios-setup.md](docs/demo-scenarios-setup.md))
 - Elastic RUM and Synthetics
 - Business-order indexing for demo narratives
 - Full IaC (Terraform) for GCP and Elastic stack objects

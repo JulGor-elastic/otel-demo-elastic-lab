@@ -39,9 +39,9 @@ jobs:
 
       - name: Run scenario on Minikube
         env:
-          KUBECONFIG: /root/.kube/config
           OTEL_DEMO_NAMESPACE: otel-demo
         run: |
           chmod +x scripts/scenarios/*.sh
-          sudo -E env KUBECONFIG="${KUBECONFIG}" OTEL_DEMO_NAMESPACE="${OTEL_DEMO_NAMESPACE}" \
+          # Runner service user (julio) uses sudo to reach root's Minikube kubeconfig
+          sudo env KUBECONFIG=/root/.kube/config OTEL_DEMO_NAMESPACE="${OTEL_DEMO_NAMESPACE}" \
             bash scripts/scenarios/run.sh "${{ steps.vars.outputs.scenario }}"
