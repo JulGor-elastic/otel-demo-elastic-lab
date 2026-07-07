@@ -13,6 +13,9 @@ on:
         type: choice
         options:
           - incident-payment
+          - incident-postgresql
+          - incident-valkey-cart
+          - incident-kafka
           - recover-payment
           - oom-pressure
           - reset-lab

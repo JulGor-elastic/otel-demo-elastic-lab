@@ -20,7 +20,7 @@ help:
 	@echo "  make demo-upgrade  - Re-apply otel-values.yaml.j2 + helm upgrade demo only"
 	@echo "  make demo-check    - Smoke tests without redeploying (ansible-playbook check.yml)"
 	@echo "  make demo-tunnel   - SSH tunnel to the demo frontend (localhost:$(LOCAL_PORT))"
-	@echo "  make demo-scenario-<name> - Run scenario on VM (incident-payment, recover-payment, reset-lab, oom-pressure)"
+	@echo "  make demo-scenario-<name> - Run scenario on VM (incident-*, recover-payment, oom-pressure, reset-lab)"
 	@echo ""
 	@echo "Local config: cp config.mk.example config.mk"
 

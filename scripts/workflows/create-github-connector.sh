@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Create a Kibana HTTP connector for GitHub API (stores PAT securely).
+# Create a Kibana HTTP connector (.http) for the GitHub API (Workflows / Phase 4).
 #
-# Reads from environment or vars.yml (via ansible-style vars if sourced):
-#   KIBANA_URL              — e.g. https://project.kb.region.aws.elastic.cloud
-#   ELASTIC_API_KEY         — API key with connector write privileges
-#   GITHUB_PAT              — Personal access token (repo + workflow scope)
+# Uses connector_type_id ".http" (supported_feature_ids: workflows), NOT ".webhook".
+# GitHub PAT is stored as the "password" in basic auth (GitHub REST API accepts this).
+#
+# Required:
+#   KIBANA_URL       — https://<project>.kb.<region>.aws.elastic.cloud
+#   ELASTIC_API_KEY  — API key with permission to create connectors
+#   GITHUB_PAT       — PAT with repo + workflow scopes
 #
 # Usage:
 #   export KIBANA_URL="https://..."
@@ -12,7 +15,9 @@
 #   export GITHUB_PAT="ghp_..."
 #   ./scripts/workflows/create-github-connector.sh
 #
-# Prints the connector ID to stdout.
+# Optional:
+#   CONNECTOR_ID=otel-demo-github
+#   CONNECTOR_NAME="OTel Demo GitHub API"
 
 set -euo pipefail
 
@@ -32,32 +37,66 @@ payload="$(jq -n \
   --arg pat "${GITHUB_PAT}" \
   '{
     name: $name,
-    connector_type_id: ".webhook",
+    connector_type_id: ".http",
     config: {
       url: "https://api.github.com",
-      method: "post",
       hasAuth: true,
-      authType: "webhook",
+      authType: "webhook-authentication-basic",
       headers: {
         Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28"
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json"
       }
     },
     secrets: {
-      authToken: $pat
+      user: "github",
+      password: $pat
     }
   }')"
 
-response="$(curl -fsSL -X POST "${KIBANA_URL}/api/actions/connector/${CONNECTOR_ID}" \
-  -H "Authorization: ApiKey ${ELASTIC_API_KEY}" \
-  -H "kbn-xsrf: true" \
-  -H "Content-Type: application/json" \
-  -d "${payload}" 2>&1)" || {
-  echo "Connector create failed (may already exist). Try PUT or use Stack Management UI." >&2
-  echo "${response}" >&2
-  exit 1
+api_call() {
+  local method="$1"
+  curl -sS -w '\n__HTTP_CODE__:%{http_code}' -X "${method}" \
+    "${KIBANA_URL}/api/actions/connector/${CONNECTOR_ID}" \
+    -H "Authorization: ApiKey ${ELASTIC_API_KEY}" \
+    -H "kbn-xsrf: true" \
+    -H "Content-Type: application/json" \
+    -d "${payload}"
 }
 
-echo "${response}" | jq -r '.id // empty'
-echo "Connector ID: ${CONNECTOR_ID}" >&2
-echo "Add to vars.yml: github_http_connector_id: \"${CONNECTOR_ID}\"" >&2
+log() { echo "[create-github-connector] $*" >&2; }
+
+response="$(api_call POST)"
+http_code="${response##*__HTTP_CODE__:}"
+body="${response%__HTTP_CODE__:*}"
+
+if [[ "${http_code}" == "200" ]]; then
+  echo "${body}" | jq -r '.id // empty'
+  log "Created connector: ${CONNECTOR_ID}"
+elif [[ "${http_code}" == "409" ]]; then
+  log "Connector exists; updating with PUT"
+  response="$(api_call PUT)"
+  http_code="${response##*__HTTP_CODE__:}"
+  body="${response%__HTTP_CODE__:*}"
+  if [[ "${http_code}" == "200" ]]; then
+    echo "${body}" | jq -r '.id // empty'
+    log "Updated connector: ${CONNECTOR_ID}"
+  else
+    log "Update failed (HTTP ${http_code})"
+    echo "${body}" | jq . 2>/dev/null || echo "${body}"
+    exit 1
+  fi
+else
+  log "Create failed (HTTP ${http_code})"
+  echo "${body}" | jq . 2>/dev/null || echo "${body}"
+  log ""
+  log "If the API keeps failing, create the connector in Kibana UI:"
+  log "  Stack Management → Connectors → Create connector → HTTP"
+  log "  URL: https://api.github.com"
+  log "  Auth: Basic — user: github — password: <your PAT>"
+  log "  Headers: Accept=application/vnd.github+json, X-GitHub-Api-Version=2022-11-28"
+  log "  Connector ID: ${CONNECTOR_ID}"
+  exit 1
+fi
+
+log "Add to vars.yml: github_http_connector_id: \"${CONNECTOR_ID}\""

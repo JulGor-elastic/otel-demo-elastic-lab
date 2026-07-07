@@ -107,9 +107,12 @@ Orchestrate incident and recovery scripts on the lab VM from **GitHub Actions** 
 | Scenario | Effect |
 |----------|--------|
 | `incident-payment` | Scale `payment` to 0 — checkout fails |
+| `incident-postgresql` | Scale `postgresql` to 0 — shared DB outage |
+| `incident-valkey-cart` | Scale `valkey-cart` to 0 — cart cache down |
+| `incident-kafka` | Scale `kafka` to 0 — async messaging outage |
 | `recover-payment` | Restore `payment` |
 | `oom-pressure` | Lower `fraud-detection` memory → OOMKill |
-| `reset-lab` | Full stable-state restore |
+| `reset-lab` | Restore infra + payment + memory; full wait script |
 
 **Full setup guide (fork, runner, GitHub Actions, Kibana Workflows):**  
 → **[docs/demo-scenarios-setup.md](docs/demo-scenarios-setup.md)**

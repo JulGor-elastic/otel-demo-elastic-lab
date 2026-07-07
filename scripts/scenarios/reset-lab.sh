@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
-# Restore stable lab state: payment up, fraud-detection memory, ordered pod wait.
+# Restore stable lab state: infra, payment, fraud-detection memory, ordered pod wait.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # shellcheck source=lib.sh
 source "${SCRIPT_DIR}/lib.sh"
 
+INFRA_DEPLOYMENTS=(postgresql kafka valkey-cart)
+
 ensure_namespace
+
+log "Restoring infrastructure deployments to 1 replica"
+for dep in "${INFRA_DEPLOYMENTS[@]}"; do
+  kubectl_ns scale "deployment/${dep}" --replicas=1
+done
+
 log "Restoring payment replicas"
 kubectl_ns scale deployment/payment --replicas=1
 

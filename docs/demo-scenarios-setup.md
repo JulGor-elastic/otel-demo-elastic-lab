@@ -111,9 +111,12 @@ github_ref: "main"
 | Scenario | Script | Effect |
 |----------|--------|--------|
 | `incident-payment` | `scripts/scenarios/incident-payment.sh` | Scales `payment` to 0 — checkout fails |
+| `incident-postgresql` | `scripts/scenarios/incident-postgresql.sh` | Scales `postgresql` to 0 — shared DB outage |
+| `incident-valkey-cart` | `scripts/scenarios/incident-valkey-cart.sh` | Scales `valkey-cart` to 0 — cart cache down |
+| `incident-kafka` | `scripts/scenarios/incident-kafka.sh` | Scales `kafka` to 0 — async messaging outage |
 | `recover-payment` | `scripts/scenarios/recover-payment.sh` | Restores `payment` to 1 replica |
 | `oom-pressure` | `scripts/scenarios/oom-pressure.sh` | Lowers `fraud-detection` memory → OOMKill |
-| `reset-lab` | `scripts/scenarios/reset-lab.sh` | Restores replicas, memory limits, runs readiness wait |
+| `reset-lab` | `scripts/scenarios/reset-lab.sh` | Restores postgresql, kafka, valkey-cart, payment, memory |
 
 GitHub Actions workflow: [`.github/workflows/demo-scenarios.yml`](../.github/workflows/demo-scenarios.yml)  
 Runner labels required: `self-hosted`, `otel-demo`
@@ -239,6 +242,8 @@ Trigger the same scenarios from **Kibana → Workflows** so demos don't require 
 
 Store a GitHub PAT (needs **`repo`** + **`workflow`** for `workflow_dispatch`) in Kibana connectors — not in workflow YAML.
 
+Use the **HTTP** connector type (`.http`, for Workflows). Do **not** use the generic **Webhook** connector (`.webhook`) — it uses a different schema and returns HTTP 400 with the install script's old payload.
+
 **From your workstation:**
 
 ```bash
@@ -251,13 +256,27 @@ export GITHUB_PAT="ghp_..."
 
 Note the connector ID (default: `otel-demo-github`) and set `github_http_connector_id` in `vars.yml`.
 
-**Or via UI:** Kibana → **Stack Management** → **Connectors** → create an HTTP connector with base URL `https://api.github.com` and Bearer auth.
+**Or via UI:** Kibana → **Stack Management** → **Connectors** → **Create connector** → **HTTP**
+
+| Field | Value |
+|-------|--------|
+| Connector ID | `otel-demo-github` |
+| URL | `https://api.github.com` |
+| Authentication | Basic |
+| Username | `github` (any string works) |
+| Password | your `ghp_...` PAT |
+| Headers | `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28` |
+
+GitHub accepts a PAT as the basic-auth password ([REST API auth](https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api)).
 
 ### 7.2 Deploy workflow definitions
 
 Workflow YAML files live in `scripts/workflows/`:
 
 - `otel-demo-incident-payment.yaml`
+- `otel-demo-incident-postgresql.yaml`
+- `otel-demo-incident-valkey-cart.yaml`
+- `otel-demo-incident-kafka.yaml`
 - `otel-demo-recover-payment.yaml`
 - `otel-demo-reset-lab.yaml`
 - `otel-demo-oom-pressure.yaml`
@@ -301,7 +320,7 @@ export GITHUB_REF="main"
 | `No runner matching...` | Missing label | Runner must have label `otel-demo` |
 | Job fails at kubectl | No sudo / wrong kubeconfig | `sudo kubectl get pods -n otel-demo` on VM |
 | Workflow dispatch 404 from Kibana | Wrong owner/repo in workflow consts | Re-run `deploy-workflows.sh` with correct env |
-| Connector auth error | PAT expired or missing `workflow` scope | Regenerate PAT; update connector secret |
+| Connector create HTTP 400 | Wrong connector type (`.webhook` vs `.http`) | Use updated `create-github-connector.sh` or HTTP connector in UI |
 
 ### Runner service logs (VM)
 

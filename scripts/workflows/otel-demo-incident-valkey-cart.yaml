@@ -1,0 +1,47 @@
+name: "OTel Demo — incident valkey cart"
+enabled: true
+description: |
+  Demo scenario: scale Valkey (cart cache) to 0 replicas.
+  Cart operations fail early in the user journey — contrast with payment failures at checkout.
+  Use reset-lab to restore.
+tags:
+  - otel-demo
+  - demo
+  - observability
+  - infrastructure
+triggers:
+  - type: manual
+consts:
+  github_connector_id: "__GITHUB_HTTP_CONNECTOR_ID__"
+  github_owner: "__GITHUB_REPO_OWNER__"
+  github_repo: "__GITHUB_REPO_NAME__"
+  github_ref: "__GITHUB_REF__"
+steps:
+  - name: log_start
+    type: console
+    with:
+      message: "Triggering incident-valkey-cart on lab VM via GitHub Actions"
+
+  - name: dispatch_github_workflow
+    type: http
+    connector-id: "{{ consts.github_connector_id }}"
+    with:
+      path: "/repos/{{ consts.github_owner }}/{{ consts.github_repo }}/actions/workflows/demo-scenarios.yml/dispatches"
+      method: POST
+      headers:
+        Accept: application/vnd.github+json
+        X-GitHub-Api-Version: "2022-11-28"
+        Content-Type: application/json
+      body:
+        ref: "{{ consts.github_ref }}"
+        inputs:
+          scenario: incident-valkey-cart
+    on-failure:
+      retry:
+        max-attempts: 2
+        delay: 3s
+
+  - name: log_done
+    type: console
+    with:
+      message: "GitHub workflow dispatched. Watch cart service errors in Elastic APM."
