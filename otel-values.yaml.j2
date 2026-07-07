@@ -1,0 +1,146 @@
+# Disable bundled backends replaced by Elastic Observability
+jaeger:
+  enabled: false
+opensearch:
+  enabled: false
+
+# Prometheus: minimal local retention; remote write to Elastic
+prometheus:
+  enabled: true
+  alertmanager:
+    enabled: false
+  configmapReload:
+    prometheus:
+      enabled: false
+  kube-state-metrics:
+    enabled: false
+  prometheus-node-exporter:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  server:
+    fullnameOverride: prometheus
+    retention: "{{ prometheus_retention }}"
+    retentionSize: "{{ prometheus_retention_size }}"
+    global:
+      scrape_interval: "{{ prometheus_scrape_interval }}"
+      scrape_timeout: 10s
+      evaluation_interval: 30s
+    resources:
+      limits:
+        memory: 400Mi
+  serverFiles:
+    prometheus.yml:
+      remote_write:
+        - url: "{{ elastic_prometheus_remote_write_url }}"
+          authorization:
+            type: ApiKey
+            credentials: "{{ elastic_token }}"
+          write_relabel_configs:
+            - target_label: data_stream_dataset
+              replacement: "{{ prometheus_data_stream_dataset }}"
+            - target_label: data_stream_namespace
+              replacement: "{{ prometheus_data_stream_namespace }}"
+
+# Grafana: bundled demo dashboards (PromQL); served under /grafana via frontend-proxy
+grafana:
+  enabled: true
+  fullnameOverride: grafana
+  testFramework:
+    enabled: false
+  # OpenSearch is disabled; drop the plugin to save memory on Minikube
+  plugins: []
+  resources:
+    limits:
+      memory: 256Mi
+  # Second Prometheus-compatible datasource → Elastic PRW metrics (PromQL over ES).
+  # Bundled dashboards expose a "Data Source" variable (DS_PROMETHEUS) listing all prometheus-type sources.
+  extraObjects:
+    - |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: grafana-datasource-elasticsearch-prw
+        labels:
+          grafana_datasource: "1"
+      data:
+        elasticsearch-prw.yaml: |
+          apiVersion: 1
+          datasources:
+            - name: Elasticsearch
+              uid: elasticsearch-prometheus
+              type: prometheus
+              access: proxy
+              url: "{{ elastic_es_endpoint }}/_prometheus/metrics-{{ prometheus_data_stream_dataset }}.prometheus-{{ prometheus_data_stream_namespace }}"
+              editable: true
+              isDefault: false
+              jsonData:
+                timeInterval: "{{ prometheus_scrape_interval }}"
+                httpHeaderName1: Authorization
+              secureJsonData:
+                httpHeaderValue1: "ApiKey {{ elastic_token }}"
+
+# Minikube + Prometheus/Grafana increases memory pressure; defaults (300Mi) OOM on ad/fraud-detection
+components:
+  frontend:
+    # Relative URL so browser exports to the same host as the page (tunnel, VM IP, etc.)
+    # Default chart value http://localhost:8080/... only works with SSH tunnel to localhost.
+    envOverrides:
+      - name: PUBLIC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+        value: "/otlp-http/v1/traces"
+  ad:
+    resources:
+      limits:
+        memory: 512Mi
+      requests:
+        memory: 256Mi
+  fraud-detection:
+    resources:
+      limits:
+        memory: 512Mi
+      requests:
+        memory: 256Mi
+
+# Route the demo collector to the in-cluster EDOT gateway
+opentelemetry-collector:
+  mode: deployment
+  config:
+    processors:
+      # k8sattributes (chart preset) can overwrite browser service.name with the proxy pod;
+      # restore frontend-web for OTLP spans from the JS SDK.
+      transform/browser_rum:
+        error_mode: ignore
+        trace_statements:
+          - context: resource
+            statements:
+              # k8sattributes strips telemetry.sdk.language; browser.* attrs survive.
+              - set(attributes["service.name"], "frontend-web") where attributes["browser.platform"] != nil
+              - set(attributes["telemetry.sdk.language"], "webjs") where attributes["browser.platform"] != nil
+          - context: span
+            statements:
+              # Elastic RUM OTel dashboards expect user_agent.original on the resource (not span).
+              - set(resource.attributes["user_agent.original"], attributes["user_agent.original"]) where resource.attributes["browser.platform"] != nil and attributes["user_agent.original"] != nil
+              - set(resource.attributes["user_agent.original"], attributes["http.user_agent"]) where resource.attributes["browser.platform"] != nil and resource.attributes["user_agent.original"] == nil and attributes["http.user_agent"] != nil
+    exporters:
+      otlp/edot_stack:
+        endpoint: "opentelemetry-kube-stack-gateway-collector.opentelemetry-operator-system.svc.cluster.local:4317"
+        tls:
+          insecure: true
+      # Push OTel metrics to in-cluster Prometheus (OTLP /api/v1/otlp). Required for bundled
+      # Grafana dashboards (Linux, Demo Dashboard) and for PRW → Elastic via prometheus.remote_write.
+      otlphttp/prometheus:
+        endpoint: http://prometheus:9090/api/v1/otlp
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        traces:
+          processors: [memory_limiter, resourcedetection, resource, transform, transform/browser_rum, batch]
+          exporters: [otlp/edot_stack, debug, spanmetrics]
+        metrics:
+          receivers: [otlp, kafkametrics, spanmetrics]
+          processors: [memory_limiter, resourcedetection, resource, batch]
+          exporters: [otlp/edot_stack, otlphttp/prometheus, debug]
+        logs:
+          processors: [memory_limiter, resourcedetection, resource, batch]
+          exporters: [otlp/edot_stack, debug]

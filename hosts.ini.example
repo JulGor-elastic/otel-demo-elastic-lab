@@ -1,0 +1,9 @@
+[gcp_vm]
+# GCP VM external IP (or internal IP if using IAP)
+YOUR_VM_EXTERNAL_IP
+
+[gcp_vm:vars]
+# SSH user on the VM (usually matches your gcloud username)
+ansible_user=YOUR_SSH_USER
+ansible_ssh_private_key_file=~/.ssh/google_compute_engine
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'

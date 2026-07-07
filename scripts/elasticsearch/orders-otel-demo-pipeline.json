@@ -1,0 +1,12 @@
+{
+  "description": "Normalize OTel Demo checkout 'order placed' logs into business.* fields (dest pipeline for orders transform). Uses Painless because OTel attributes use dotted keys (app.order.id) inside the attributes object.",
+  "processors": [
+    {
+      "script": {
+        "lang": "painless",
+        "if": "ctx.attributes != null && ctx.attributes.containsKey('app.order.id')",
+        "source": "if (ctx.business == null) { ctx.business = new HashMap(); } if (ctx.business.order == null) { ctx.business.order = new HashMap(); } if (ctx.business.shipping == null) { ctx.business.shipping = new HashMap(); } ctx.business.order.id = ctx.attributes['app.order.id']; if (ctx.attributes.containsKey('app.order.amount')) { ctx.business.order.amount = ctx.attributes['app.order.amount']; } if (ctx.attributes.containsKey('app.order.items.count')) { ctx.business.order.items_count = ctx.attributes['app.order.items.count']; } if (ctx.attributes.containsKey('app.shipping.amount')) { ctx.business.shipping.amount = ctx.attributes['app.shipping.amount']; } if (ctx.attributes.containsKey('app.shipping.tracking.id')) { ctx.business.shipping.tracking_id = ctx.attributes['app.shipping.tracking.id']; } ctx.business.order.status = 'completed'; if (ctx['@timestamp'] != null) { ctx.business.order.placed_at = ctx['@timestamp']; }"
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+# Copy this file to vars.yml and fill in your real values.
+# vars.yml is gitignored and must not be committed.
+
+# Elastic Cloud Serverless — mOTLP endpoint (Add data → OpenTelemetry → Elastic Distributions)
+elastic_endpoint: "https://YOUR_PROJECT_ID.ingest.REGION.aws.elastic.cloud:443"
+
+# Elasticsearch query endpoint for Grafana PromQL datasource (replace ingest → es, drop :443)
+# Example: https://YOUR_PROJECT_ID.es.REGION.aws.elastic.cloud
+elastic_es_endpoint: "https://YOUR_PROJECT_ID.es.REGION.aws.elastic.cloud"
+
+# API key with ingest permissions for the project
+elastic_token: "YOUR_BASE64_API_KEY"
+
+# Kibana onboarding ID (Add data → Kubernetes → OpenTelemetry / EDOT)
+edot_onboarding_id: "00000000-0000-0000-0000-000000000000"
+
+# Prometheus Remote Write (Serverless: Ingest endpoint + /api/v1/write)
+# Kibana → Project → Manage → Ingest → copy endpoint, append /api/v1/write
+# Docs: https://www.elastic.co/docs/reference/opentelemetry/motlp/prometheus-remote-write
+elastic_prometheus_remote_write_url: "https://YOUR_PROJECT_ID.ingest.REGION.aws.elastic.cloud/api/v1/write"
+# PRW normalizes hyphens → underscores in the ES data stream name (otel-demo → otel_demo)
+prometheus_data_stream_dataset: "otel_demo"
+prometheus_data_stream_namespace: "default"
+prometheus_retention: "30m"
+prometheus_retention_size: "128MB"
+prometheus_scrape_interval: "15s"
+
+# --- Pinned Helm chart versions ---
+helm_chart_opentelemetry_demo_version: "0.40.9"
+helm_chart_edot_kube_stack_version: "0.12.4"
+elastic_agent_ref: "v9.4.2"
+
+# --- OTel Demo ---
+otel_demo_release_name: "my-otel-demo"
+# Must match the namespace of the existing Helm release (default chart namespace: otel-demo)
+otel_demo_namespace: "otel-demo"
+otel_demo_wait_timeout: "600"
+
+# --- Phase 4: Elastic Workflows → GitHub Actions → VM scenarios ---
+# Kibana URL (Serverless: https://YOUR_PROJECT_ID.kb.REGION.aws.elastic.cloud)
+kibana_url: "https://YOUR_PROJECT_ID.kb.REGION.aws.elastic.cloud"
+# HTTP connector ID in Kibana (create via scripts/workflows/create-github-connector.sh)
+github_http_connector_id: "otel-demo-github"
+github_repo_owner: "YOUR_GITHUB_ORG"
+github_repo_name: "otel-demo-ansible"
+github_ref: "main"

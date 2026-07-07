@@ -1,0 +1,20 @@
+# Reference copy of the Grafana datasource provisioned via Helm (grafana.extraObjects).
+# Source of truth: otel-values.yaml.j2
+#
+# Docs: https://www.elastic.co/docs/reference/query-languages/promql/promql-grafana
+
+apiVersion: 1
+
+datasources:
+  - name: Elasticsearch
+    uid: elasticsearch-prometheus
+    type: prometheus
+    access: proxy
+    url: "https://<project>.es.<region>.aws.elastic.cloud/_prometheus/metrics-otel-demo.prometheus-default"
+    editable: true
+    isDefault: false
+    jsonData:
+      timeInterval: "15s"
+      httpHeaderName1: Authorization
+    secureJsonData:
+      httpHeaderValue1: "ApiKey <base64-api-key>"

@@ -1,0 +1,134 @@
+- name: Provision GCP VM and deploy OTel Demo
+  hosts: gcp_vm
+  become: yes
+  vars_files:
+    - vars.yml
+
+  tasks:
+    - name: 1. Install base dependencies and Docker
+      apt:
+        name:
+          - curl
+          - apt-transport-https
+          - docker.io
+          - python3
+        state: present
+        update_cache: yes
+
+    - name: 2. Install Minikube
+      get_url:
+        url: https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+        dest: /usr/local/bin/minikube
+        mode: '0755'
+
+    - name: 3. Install kubectl
+      get_url:
+        url: "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
+
+    - name: 4. Install Helm
+      shell: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      args:
+        creates: /usr/local/bin/helm
+
+    - name: 5. Start Minikube
+      command: minikube start --force --driver=docker --cpus 4 --memory 12288 --disk-size 40gb --mount --mount-string="/var/log:/var/log"
+
+    - name: 5b. Wait for Kubernetes node to be ready
+      command: kubectl wait --for=condition=Ready node --all --timeout=180s
+      environment:
+        KUBECONFIG: /root/.kube/config
+
+    - name: 6. Create configuration directory
+      file:
+        path: /opt/otel-demo
+        state: directory
+
+    - name: 7. Render and copy values.yaml to the server
+      template:
+        src: otel-values.yaml.j2
+        dest: /opt/otel-demo/values.yaml
+
+    - name: 8. Add OpenTelemetry Helm repository
+      command: helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts --force-update
+      environment:
+        KUBECONFIG: /root/.kube/config
+
+    - name: 9. Update Helm repositories
+      command: helm repo update
+      environment:
+        KUBECONFIG: /root/.kube/config
+
+    - name: 9a. Create EDOT namespace (ignore if exists)
+      command: kubectl create namespace opentelemetry-operator-system
+      environment:
+        KUBECONFIG: /root/.kube/config
+      ignore_errors: yes
+
+    - name: 9b. Create Elastic secret
+      shell: >
+        kubectl create secret generic elastic-secret-otel
+        --namespace opentelemetry-operator-system
+        --from-literal=elastic_otlp_endpoint='{{ elastic_endpoint }}'
+        --from-literal=elastic_api_key='{{ elastic_token }}'
+        --dry-run=client -o yaml | kubectl apply -f -
+      environment:
+        KUBECONFIG: /root/.kube/config
+
+    - name: 9c. Install EDOT Kube Stack
+      command: >
+        helm upgrade --install opentelemetry-kube-stack open-telemetry/opentelemetry-kube-stack
+        --namespace opentelemetry-operator-system
+        --values 'https://raw.githubusercontent.com/elastic/elastic-agent/refs/tags/{{ elastic_agent_ref }}/deploy/helm/edot-collector/kube-stack/managed_otlp/values.yaml'
+        --version '{{ helm_chart_edot_kube_stack_version }}'
+        --set 'collectors.daemon.config.processors.resource\/onboarding_id.attributes[0].action=upsert'
+        --set 'collectors.daemon.config.processors.resource\/onboarding_id.attributes[0].key=onboarding.id'
+        --set 'collectors.daemon.config.processors.resource\/onboarding_id.attributes[0].value={{ edot_onboarding_id }}'
+        --set 'collectors.daemon.config.service.pipelines.logs\/node.processors[8]=resource/onboarding_id'
+        --set 'collectors.daemon.config.service.pipelines.metrics\/node\/otel.processors[8]=resource/onboarding_id'
+        --set 'collectors.daemon.config.processors.resource\/wired_streams.attributes[0].action=upsert'
+        --set 'collectors.daemon.config.processors.resource\/wired_streams.attributes[0].key=elasticsearch.index'
+        --set 'collectors.daemon.config.processors.resource\/wired_streams.attributes[0].value=logs.otel'
+        --set 'collectors.daemon.config.service.pipelines.logs\/node.processors[9]=resource/wired_streams'
+      environment:
+        KUBECONFIG: /root/.kube/config
+
+    - name: 9d. Wait for EDOT operator to be ready
+      command: >
+        kubectl wait deployment --all
+        --for=condition=Available
+        --timeout=300s
+        --namespace opentelemetry-operator-system
+      environment:
+        KUBECONFIG: /root/.kube/config
+
+    - name: 9e. Wait for EDOT collector DaemonSet to be ready
+      command: >
+        kubectl wait daemonset --all
+        --for=jsonpath='{.status.numberReady}'=1
+        --timeout=300s
+        --namespace opentelemetry-operator-system
+      environment:
+        KUBECONFIG: /root/.kube/config
+      ignore_errors: yes
+
+    - name: 10. Deploy OTel Demo
+      command: >
+        helm upgrade --install {{ otel_demo_release_name }} open-telemetry/opentelemetry-demo
+        --version '{{ helm_chart_opentelemetry_demo_version }}'
+        --values /opt/otel-demo/values.yaml
+        --namespace {{ otel_demo_namespace }} --create-namespace
+        --wait --timeout 20m
+      environment:
+        KUBECONFIG: /root/.kube/config
+
+    - name: 11. Ordered wait and pod remediation for OTel Demo
+      script: scripts/wait-otel-demo-ready.sh
+      environment:
+        KUBECONFIG: /root/.kube/config
+        OTEL_DEMO_NAMESPACE: "{{ otel_demo_namespace }}"
+        WAIT_TIMEOUT: "{{ otel_demo_wait_timeout }}"
+
+    - name: 12. Smoke tests
+      import_tasks: tasks/smoke_test.yml

@@ -1,0 +1,40 @@
+{
+  "description": "Latest completed OTel Demo order per app.order.id from checkout OTLP logs (load-generator checkout flow)",
+  "source": {
+    "index": ["logs-generic.otel-default"],
+    "query": {
+      "bool": {
+        "filter": [
+          { "exists": { "field": "attributes.app.order.id" } },
+          { "term": { "resource.attributes.service.name": "checkout" } },
+          { "match_phrase": { "body.text": "order placed" } }
+        ]
+      }
+    }
+  },
+  "dest": {
+    "index": "orders-otel-demo",
+    "pipeline": "orders-otel-demo-normalize"
+  },
+  "latest": {
+    "unique_key": ["attributes.app.order.id"],
+    "sort": "@timestamp"
+  },
+  "frequency": "1m",
+  "sync": {
+    "time": {
+      "field": "@timestamp",
+      "delay": "60s"
+    }
+  },
+  "retention_policy": {
+    "time": {
+      "field": "@timestamp",
+      "max_age": "90d"
+    }
+  },
+  "settings": {
+    "max_page_search_size": 500,
+    "deduce_mappings": true
+  }
+}

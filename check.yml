@@ -1,0 +1,14 @@
+---
+# Standalone smoke tests (no full redeploy).
+# Usage: ansible-playbook -i hosts.ini check.yml
+#    or: make demo-check
+
+- name: Verify OTel Demo lab health
+  hosts: gcp_vm
+  become: yes
+  vars_files:
+    - vars.yml
+
+  tasks:
+    - name: Run smoke tests
+      import_tasks: tasks/smoke_test.yml

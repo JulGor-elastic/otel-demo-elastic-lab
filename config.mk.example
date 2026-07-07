@@ -1,0 +1,7 @@
+# Copy this file to config.mk and adjust for your environment.
+# config.mk is gitignored.
+
+GCP_VM_NAME  = YOUR_GCP_VM_NAME
+GCP_ZONE     = YOUR_GCP_ZONE
+GCP_SSH_USER = YOUR_SSH_USER
+LOCAL_PORT   = 8080

@@ -1,0 +1,77 @@
+---
+- name: Smoke test | Run ordered OTel Demo readiness wait
+  script: scripts/wait-otel-demo-ready.sh
+  environment:
+    KUBECONFIG: /root/.kube/config
+    OTEL_DEMO_NAMESPACE: "{{ otel_demo_namespace }}"
+    WAIT_TIMEOUT: "{{ otel_demo_wait_timeout }}"
+
+- name: Smoke test | Verify frontend-proxy responds inside the cluster
+  shell: |
+    set -e
+    kubectl delete pod otel-demo-smoke-test -n "{{ otel_demo_namespace }}" --ignore-not-found --wait=true
+    kubectl run otel-demo-smoke-test \
+      --restart=Never \
+      --image=curlimages/curl:8.5.0 \
+      -n "{{ otel_demo_namespace }}" \
+      --command -- curl -sf --max-time 15 "http://frontend-proxy:8080/"
+    kubectl wait --for=jsonpath='{.status.phase}'=Succeeded \
+      pod/otel-demo-smoke-test -n "{{ otel_demo_namespace }}" --timeout=120s
+    kubectl delete pod otel-demo-smoke-test -n "{{ otel_demo_namespace }}" --wait=true
+  environment:
+    KUBECONFIG: /root/.kube/config
+  changed_when: false
+
+- name: Smoke test | Verify Prometheus is reachable inside the cluster
+  shell: |
+    set -e
+    kubectl delete pod otel-demo-prometheus-smoke -n "{{ otel_demo_namespace }}" --ignore-not-found --wait=true
+    kubectl run otel-demo-prometheus-smoke \
+      --restart=Never \
+      --image=curlimages/curl:8.5.0 \
+      -n "{{ otel_demo_namespace }}" \
+      --command -- curl -sf --max-time 15 "http://prometheus:9090/-/ready"
+    kubectl wait --for=jsonpath='{.status.phase}'=Succeeded \
+      pod/otel-demo-prometheus-smoke -n "{{ otel_demo_namespace }}" --timeout=120s
+    kubectl delete pod otel-demo-prometheus-smoke -n "{{ otel_demo_namespace }}" --wait=true
+  environment:
+    KUBECONFIG: /root/.kube/config
+  changed_when: false
+
+- name: Smoke test | Assert all pods are Running and not OOMKilled
+  shell: |
+    set -e
+    oom=$(kubectl get pods -n "{{ otel_demo_namespace }}" --no-headers \
+      | awk '$4 ~ /OOMKilled/ { c++ } END { print c+0 }')
+    bad=$(kubectl get pods -n "{{ otel_demo_namespace }}" --no-headers \
+      | awk '$2 !~ /^[0-9]+\/[0-9]+$/ || $3 != "Running" { print $1, $2, $3, $4 }')
+    if [ "$oom" != "0" ]; then
+      echo "OOMKilled pods detected: $oom"
+      kubectl get pods -n "{{ otel_demo_namespace }}" | awk 'NR==1 || /OOMKilled/'
+      exit 1
+    fi
+    if [ -n "$bad" ]; then
+      echo "Unhealthy pods:"
+      echo "$bad"
+      exit 1
+    fi
+  environment:
+    KUBECONFIG: /root/.kube/config
+  changed_when: false
+
+- name: Smoke test | Show pod summary
+  command: kubectl get pods -n "{{ otel_demo_namespace }}"
+  environment:
+    KUBECONFIG: /root/.kube/config
+  register: pod_summary
+  changed_when: false
+
+- name: Smoke test | Summary
+  debug:
+    msg:
+      - "OTel Demo is up in namespace {{ otel_demo_namespace }}"
+      - "frontend-proxy returned HTTP 200"
+      - "prometheus /-/ready returned HTTP 200"
+      - "Grafana UI: http://localhost:8080/grafana (requires port-forward + SSH tunnel)"
+      - "Prometheus metrics data stream: metrics-{{ prometheus_data_stream_dataset }}.prometheus-{{ prometheus_data_stream_namespace }}"
+      - "{{ pod_summary.stdout_lines }}"

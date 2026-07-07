@@ -1,0 +1,19 @@
+# Local secrets and environment-specific config
+vars.yml
+hosts.ini
+hosts.ini.bak
+config.mk
+llm-context/
+.claude/
+Priv_README.md
+
+# Editor / OS noise
+.DS_Store
+*.swp
+*.swo
+*~
+Untitled
+
+# Optional local env overrides
+.env
+.env.*

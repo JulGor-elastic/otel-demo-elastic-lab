@@ -1,0 +1,47 @@
+# Trigger OTel Demo scenarios on the GCP VM via GitHub Actions (self-hosted runner).
+# Requires a self-hosted runner on the VM with label "otel-demo".
+# See scripts/github/install-runner.sh and llm-context/phase4_remote_control.md
+
+name: Demo scenarios
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Scenario to run on the lab VM
+        required: true
+        type: choice
+        options:
+          - incident-payment
+          - recover-payment
+          - oom-pressure
+          - reset-lab
+
+  repository_dispatch:
+    types:
+      - otel-demo-scenario
+
+jobs:
+  run-scenario:
+    runs-on: [self-hosted, otel-demo]
+    steps:
+      - name: Resolve scenario name
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "scenario=${{ github.event.client_payload.scenario }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "scenario=${{ inputs.scenario }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run scenario on Minikube
+        env:
+          KUBECONFIG: /root/.kube/config
+          OTEL_DEMO_NAMESPACE: otel-demo
+        run: |
+          chmod +x scripts/scenarios/*.sh
+          sudo -E env KUBECONFIG="${KUBECONFIG}" OTEL_DEMO_NAMESPACE="${OTEL_DEMO_NAMESPACE}" \
+            bash scripts/scenarios/run.sh "${{ steps.vars.outputs.scenario }}"
