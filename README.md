@@ -1,6 +1,10 @@
 # OTel Demo + Elastic Observability Lab
 
+[![GitHub](https://img.shields.io/github/stars/JulGor-elastic/otel-demo-elastic-lab?style=social)](https://github.com/JulGor-elastic/otel-demo-elastic-lab)
+
 Ansible-based lab to deploy the [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo) on a GCP VM (Minikube) and ship logs, metrics, and traces to **Elastic Cloud** via the **EDOT Collector**.
+
+> **Public repo:** [github.com/JulGor-elastic/otel-demo-elastic-lab](https://github.com/JulGor-elastic/otel-demo-elastic-lab) — used as the orchestration bridge between Elastic Serverless Workflows and the lab VM (GitHub Actions self-hosted runner).
 
 ## Architecture
 

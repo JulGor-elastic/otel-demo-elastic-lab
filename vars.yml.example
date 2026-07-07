@@ -41,6 +41,6 @@ otel_demo_wait_timeout: "600"
 kibana_url: "https://YOUR_PROJECT_ID.kb.REGION.aws.elastic.cloud"
 # HTTP connector ID in Kibana (create via scripts/workflows/create-github-connector.sh)
 github_http_connector_id: "otel-demo-github"
-github_repo_owner: "YOUR_GITHUB_ORG"
-github_repo_name: "otel-demo-ansible"
+github_repo_owner: "JulGor-elastic"
+github_repo_name: "otel-demo-elastic-lab"
 github_ref: "main"
