@@ -13,7 +13,8 @@ GCP_SSH_USER      ?= YOUR_SSH_USER
 LOCAL_PORT        ?= 8080
 
 .PHONY: deploy demo-upgrade demo-check demo-tunnel demo-scenario-% \
-	synthetics-deploy synthetics-configure synthetics-push synthetics-setup help
+	synthetics-deploy synthetics-configure synthetics-push synthetics-setup \
+	kibana-export kibana-deploy help
 
 help:
 	@echo "Available targets:"
@@ -25,6 +26,8 @@ help:
 	@echo "  make synthetics-setup     - Deploy Fleet agent + Private Location + push monitors (Phase 2)"
 	@echo "  make synthetics-deploy    - Deploy elastic-synthetics-agent pod on VM only"
 	@echo "  make synthetics-configure - Wait Fleet, create Private Location, push monitors"
+	@echo "  make kibana-export      - Export Kibana lab objects from reference project"
+	@echo "  make kibana-deploy      - Deploy optional Kibana objects (skips existing)"
 	@echo ""
 	@echo "Local config: cp config.mk.example config.mk"
 
@@ -79,3 +82,11 @@ synthetics-push:
 synthetics-setup:
 	@chmod +x scripts/synthetics/*.sh
 	./scripts/synthetics/setup-synthetics.sh
+
+kibana-export:
+	@chmod +x scripts/kibana/*.sh
+	./scripts/kibana/export-from-kibana.sh
+
+kibana-deploy:
+	@chmod +x scripts/kibana/*.sh
+	./scripts/kibana/deploy-kibana-lab.sh

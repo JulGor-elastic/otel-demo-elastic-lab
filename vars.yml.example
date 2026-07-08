@@ -43,6 +43,10 @@ github_repo_owner: "YOUR_GITHUB_USER_OR_ORG"
 github_repo_name: "YOUR_REPO_NAME"
 github_ref: "main"
 
+# --- Optional: Kibana lab objects (RCA, dashboard, Agent Builder) ---
+# See docs/kibana-lab-objects.md — email used by RCA workflow at deploy time
+rca_notification_email: "you@example.com"
+
 # --- Optional: Synthetics Private Location ---
 # See docs/phase2-synthetics.md
 fleet_url: "https://YOUR_PROJECT.fleet.REGION.aws.elastic.cloud:443"

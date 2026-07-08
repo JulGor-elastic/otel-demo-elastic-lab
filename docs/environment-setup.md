@@ -138,9 +138,15 @@ Also: install the **GitHub Actions self-hosted runner** on the VM (`scripts/gith
 
 | Variable | Purpose |
 |----------|---------|
-| `rca_notification_email` | Email recipient in RCA workflow (substituted at deploy; not stored in git) |
+| `rca_notification_email` | **Email address** for RCA workflow notifications (`send_email` step). Set in `vars.yml`; substituted at `make kibana-deploy` — never commit your real address to git. |
 
-See [kibana-lab-objects.md](kibana-lab-objects.md). Requires exported artifacts under `kibana/` (maintainer runs `make kibana-export`).
+Example in `vars.yml`:
+
+```yaml
+rca_notification_email: "your.name@company.com"
+```
+
+See [kibana-lab-objects.md](kibana-lab-objects.md). Requires exported artifacts under `kibana/` (maintainers: `make kibana-export`).
 
 #### Optional — Synthetics Private Location
 

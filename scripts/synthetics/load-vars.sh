@@ -58,4 +58,5 @@ eval "${output}"
 
 export KIBANA_URL="${KIBANA_URL:-${kibana_url:-}}"
 export ELASTIC_API_KEY="${ELASTIC_API_KEY:-${elastic_api_key:-${ELASTIC_TOKEN:-${elastic_token:-}}}}"
+export RCA_NOTIFICATION_EMAIL="${RCA_NOTIFICATION_EMAIL:-${rca_notification_email:-}}"
 export SYNTHETICS_PRIVATE_LOCATION_NAME="${SYNTHETICS_PRIVATE_LOCATION_NAME:-${synthetics_private_location_name:-}}"

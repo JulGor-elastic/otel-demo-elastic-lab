@@ -55,8 +55,18 @@ cp config.mk.example config.mk
 | File | Purpose |
 |------|---------|
 | `hosts.ini` | VM IP address and SSH settings |
-| `vars.yml` | Elastic credentials + Helm pins; optional blocks for Kibana, scenarios, Synthetics — see [environment-setup.md](docs/environment-setup.md) |
+| `vars.yml` | Elastic credentials + Helm pins — see [environment-setup.md](docs/environment-setup.md) |
 | `config.mk` | GCP VM name, zone, SSH user (for `make demo-tunnel`) |
+
+**Optional keys in `vars.yml`** (add when you need those features):
+
+| Variable | Used for |
+|----------|----------|
+| `rca_notification_email` | Email recipient in the RCA workflow (`make kibana-deploy`) |
+| `github_*` | Demo scenario workflows — [demo-scenarios-setup.md](docs/demo-scenarios-setup.md) |
+| `fleet_*`, `synthetics_*` | Synthetics — [phase2-synthetics.md](docs/phase2-synthetics.md) |
+
+Copy from `vars.yml.example` (lines 38–55). If `rca_notification_email` is missing, `make kibana-deploy` falls back to `you@example.com`.
 
 ### 2. Deploy
 
@@ -125,11 +135,18 @@ Telemetry (traces, logs, metrics, Grafana) is live after this step.
 Business orders transform, dashboards, alerting rule, RCA workflow, and Agent Builder skills/tools — bundled in one deploy:
 
 ```bash
-# vars.yml — add:
-#   rca_notification_email: "you@example.com"
-#   github_* block (if you also want scenario workflows — step 3)
+# vars.yml — required for this step:
+rca_notification_email: "your.name@company.com"
 
 make kibana-deploy
+```
+
+Uses `rca_notification_email` from `vars.yml` to replace `__RCA_NOTIFICATION_EMAIL__` in the RCA workflow YAML before pushing to Kibana. Your personal address is **not** stored in git (export redacts emails to the placeholder).
+
+If you already deployed with the wrong address, re-run with the correct email:
+
+```bash
+KIBANA_DEPLOY_OVERWRITE=1 make kibana-deploy
 ```
 
 Deploy order inside the script: transform → scenario workflows (if `github_*` set) → RCA workflow → Agent Builder tools/skills → dashboard + alert rule.
