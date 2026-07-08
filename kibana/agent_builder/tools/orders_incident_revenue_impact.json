@@ -1,0 +1,45 @@
+{
+  "id": "orders_incident_revenue_impact",
+  "type": "esql",
+  "description": "Measures business impact of an OTel Demo incident on completed orders. Uses `?tstart`–`?tend` as the incident window and compares order volume against two baselines: the 5 equal windows immediately before the incident, and the same time yesterday (±2 adjacent windows). Returns order drop (% and estimated count vs each baseline) and estimated revenue loss (lost orders × average order amount from the matching baseline). Use when investigating a production or demo incident, answering “how many orders did we lose?”, “what is the business/revenue impact?”, or correlating an observability alert with a drop in orders-otel-demo order throughput.",
+  "tags": [],
+  "configuration": {
+    "query": "FROM orders-otel-demo\n| EVAL window_ms = DATE_DIFF(\"milliseconds\", ?tstart, ?tend)\n| EVAL w = CONCAT(TO_STRING(window_ms), \" milliseconds\")\n| WHERE @timestamp >= ?tstart - 1 day - w::TIME_DURATION - w::TIME_DURATION AND @timestamp < ?tend\n| EVAL rel_ms  = DATE_DIFF(\"milliseconds\", ?tstart, @timestamp)\n| EVAL rel_ys  = DATE_DIFF(\"milliseconds\", ?tstart - 1 day, @timestamp)\n| EVAL rel_ye  = DATE_DIFF(\"milliseconds\", ?tend   - 1 day, @timestamp)\n| EVAL segment = CASE(\n    rel_ms >= 0 AND rel_ms < window_ms, \"incident\",\n    rel_ms >= -1 * window_ms AND rel_ms < 0, \"recent_prev_1\",\n    rel_ms >= -2 * window_ms AND rel_ms < -1 * window_ms, \"recent_prev_2\",\n    rel_ms >= -3 * window_ms AND rel_ms < -2 * window_ms, \"recent_prev_3\",\n    rel_ms >= -4 * window_ms AND rel_ms < -3 * window_ms, \"recent_prev_4\",\n    rel_ms >= -5 * window_ms AND rel_ms < -4 * window_ms, \"recent_prev_5\",\n    rel_ys >= -2 * window_ms AND rel_ys < -1 * window_ms, \"yday_prev_2\",\n    rel_ys >= -1 * window_ms AND rel_ys < 0, \"yday_prev_1\",\n    rel_ys >= 0 AND rel_ys < window_ms, \"yday_same\",\n    rel_ye >= 0 AND rel_ye < window_ms, \"yday_next_1\",\n    rel_ye >= 1 * window_ms AND rel_ye < 2 * window_ms, \"yday_next_2\",\n    \"other\"\n  )\n| WHERE segment != \"other\"\n| STATS\n    incident_orders = COUNT(*) WHERE segment == \"incident\",\n    recent_prev_1   = COUNT(*) WHERE segment == \"recent_prev_1\",\n    recent_prev_2   = COUNT(*) WHERE segment == \"recent_prev_2\",\n    recent_prev_3   = COUNT(*) WHERE segment == \"recent_prev_3\",\n    recent_prev_4   = COUNT(*) WHERE segment == \"recent_prev_4\",\n    recent_prev_5   = COUNT(*) WHERE segment == \"recent_prev_5\",\n    yday_prev_2     = COUNT(*) WHERE segment == \"yday_prev_2\",\n    yday_prev_1     = COUNT(*) WHERE segment == \"yday_prev_1\",\n    yday_same       = COUNT(*) WHERE segment == \"yday_same\",\n    yday_next_1     = COUNT(*) WHERE segment == \"yday_next_1\",\n    yday_next_2     = COUNT(*) WHERE segment == \"yday_next_2\",\n    recent_avg_order_amount = AVG(attributes.app.order.amount) WHERE segment IN (\n      \"recent_prev_1\", \"recent_prev_2\", \"recent_prev_3\", \"recent_prev_4\", \"recent_prev_5\"\n    ),\n    yday_avg_order_amount = AVG(attributes.app.order.amount) WHERE segment IN (\n      \"yday_prev_2\", \"yday_prev_1\", \"yday_same\", \"yday_next_1\", \"yday_next_2\"\n    )\n| EVAL\n    recent_5_window_avg = (recent_prev_1 + recent_prev_2 + recent_prev_3 + recent_prev_4 + recent_prev_5) / 5.0,\n    yday_5_window_avg   = (yday_prev_2 + yday_prev_1 + yday_same + yday_next_1 + yday_next_2) / 5.0\n| EVAL\n  orders_lost_vs_recent = CASE(recent_5_window_avg > incident_orders, recent_5_window_avg - incident_orders, 0.0),\n  orders_lost_vs_yday   = CASE(yday_5_window_avg > incident_orders, yday_5_window_avg - incident_orders, 0.0)\n| EVAL\n  order_drop_pct_vs_recent = CASE(\n    recent_5_window_avg > 0,\n    ROUND(100.0 * (incident_orders - recent_5_window_avg) / recent_5_window_avg, 2),\n    null\n  ),\n  order_drop_pct_vs_yday = CASE(\n    yday_5_window_avg > 0,\n    ROUND(100.0 * (incident_orders - yday_5_window_avg) / yday_5_window_avg, 2),\n    null\n  )\n| EVAL\n  revenue_loss_vs_recent = CASE(\n    orders_lost_vs_recent > 0 AND recent_avg_order_amount IS NOT NULL,\n    ROUND(orders_lost_vs_recent * recent_avg_order_amount, 2),\n    0.0\n  ),\n  revenue_loss_vs_yday = CASE(\n    orders_lost_vs_yday > 0 AND yday_avg_order_amount IS NOT NULL,\n    ROUND(orders_lost_vs_yday * yday_avg_order_amount, 2),\n    0.0\n  )\n| KEEP\n  order_drop_pct_vs_recent,\n  orders_lost_vs_recent,\n  revenue_loss_vs_recent,\n  order_drop_pct_vs_yday,\n  orders_lost_vs_yday,\n  revenue_loss_vs_yday",
+    "params": {
+      "tstart": {
+        "type": "date",
+        "description": "Timestamp of the start of the analysis",
+        "optional": false
+      },
+      "tend": {
+        "type": "date",
+        "description": "Timestamp of the end of the analysis",
+        "optional": false
+      }
+    }
+  },
+  "readonly": false,
+  "experimental": false,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "tstart": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+        "description": "Timestamp of the start of the analysis"
+      },
+      "tend": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+        "description": "Timestamp of the end of the analysis"
+      }
+    },
+    "required": [
+      "tstart",
+      "tend"
+    ],
+    "description": "Parameters needed to execute the query"
+  }
+}

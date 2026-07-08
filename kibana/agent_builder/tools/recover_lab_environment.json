@@ -1,0 +1,19 @@
+{
+  "id": "recover_lab_environment",
+  "type": "workflow",
+  "description": "Runs a workflow to restore all systems to their initial stable state",
+  "tags": [
+    "remediation",
+    "workflows"
+  ],
+  "configuration": {
+    "workflow_id": "otel-demo-reset-lab-1",
+    "wait_for_completion": true
+  },
+  "readonly": false,
+  "experimental": false,
+  "schema": {
+    "type": "object",
+    "properties": {}
+  }
+}

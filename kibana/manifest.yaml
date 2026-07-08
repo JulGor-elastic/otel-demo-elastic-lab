@@ -1,0 +1,72 @@
+# Kibana lab objects — export source IDs and deploy order.
+# Run: ./scripts/kibana/export-from-kibana.sh  (once, from your reference project)
+# Deploy: make kibana-deploy  (optional; skips existing objects by default)
+#
+# See docs/kibana-lab-objects.md
+
+version: 1
+
+placeholders:
+  RCA_NOTIFICATION_EMAIL: "rca_notification_email in vars.yml"
+
+deploy_order:
+  - elasticsearch_transform
+  - workflows_otel_demo
+  - workflow_rca
+  - agent_builder_tools
+  - agent_builder_skills
+  - agent_builder_agent
+  - saved_objects
+
+components:
+  elasticsearch_transform:
+    description: Business orders transform (otel-demo-orders-latest → orders-otel-demo)
+    deploy: scripts/elasticsearch/create-orders-transform.sh
+    export: false
+
+  workflows_otel_demo:
+    description: OTel Demo scenario workflows (GitHub dispatch)
+    deploy: scripts/workflows/deploy-workflows.sh
+
+  workflow_rca:
+    description: AI-based RCA workflow (human in the loop)
+    kibana_id: automatic-ai-based-rca-human-in-the-loop-copy
+    artifact: kibana/workflows/automatic-ai-based-rca-human-in-the-loop.yaml
+    placeholders: [RCA_NOTIFICATION_EMAIL]
+    depends_on: [workflows_otel_demo]
+
+  agent_builder_tools:
+    items:
+      - id: recover_lab_environment
+        artifact: kibana/agent_builder/tools/recover_lab_environment.json
+      - id: orders_incident_revenue_impact
+        artifact: kibana/agent_builder/tools/orders_incident_revenue_impact.json
+
+  agent_builder_skills:
+    agent_id: elastic-ai-agent
+    items:
+      - id: deployment-remediation
+        artifact: kibana/agent_builder/skills/deployment-remediation.json
+      - id: environment-context
+        artifact: kibana/agent_builder/skills/environment-context.json
+      - id: incident-business-impact
+        artifact: kibana/agent_builder/skills/incident-business-impact.json
+
+  agent_builder_agent:
+    agent_id: elastic-ai-agent
+    artifact: kibana/agent_builder/agents/elastic-ai-agent.json
+    assign_skills:
+      - deployment-remediation
+      - environment-context
+      - incident-business-impact
+
+  saved_objects:
+    artifact: kibana/saved_objects/lab-objects.ndjson
+    objects:
+      - type: dashboard
+        id: 5c9b8fc2-a1be-4ad9-beb8-efb28310ddbf
+        name: "E-Commerce Orders — Business Dashboard - Logs"
+      - type: alert
+        id: ff3d48a2-ad11-40df-8ab6-6ef2797914b7
+        name: "Failed transaction rate threshold checkout"
+    depends_on: [elasticsearch_transform, workflow_rca]

@@ -1,0 +1,38 @@
+{
+  "id": "elastic-ai-agent",
+  "type": "chat",
+  "name": "Elastic AI Agent",
+  "description": "Elastic AI Agent",
+  "access_control": {
+    "access_mode": "public",
+    "entries": []
+  },
+  "created_by": {
+    "username": "system"
+  },
+  "configuration": {
+    "tools": [
+      {
+        "tool_ids": [
+          "platform.core.search",
+          "platform.core.list_indices",
+          "platform.core.get_index_mapping",
+          "platform.core.get_document_by_id",
+          "platform.core.get_workflow_execution_status",
+          "platform.core.product_documentation"
+        ]
+      }
+    ],
+    "skill_ids": [
+      "deployment-remediation",
+      "environment-context",
+      "incident-business-impact"
+    ],
+    "enable_elastic_capabilities": true
+  },
+  "permissions": {
+    "update_agent": true,
+    "update_access_control": false
+  },
+  "readonly": false
+}

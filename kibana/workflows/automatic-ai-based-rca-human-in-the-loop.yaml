@@ -1,0 +1,85 @@
+version: "1"
+name: NEW - Automatic AI-based RCA (Human in the Loop)
+description: |
+  Notify launch operations team when a service is having more failed transactions than expected. Triggered by alert rules — runs AI root cause analysis, create creates a case with RCA findings and communicate the findings to the SRE team through email.
+enabled: true
+triggers:
+  - type: alert
+steps:
+  - name: run_rca
+    type: ai.agent
+    with:
+      message: |-
+        You are an expert SRE engineer specialized in root cause analysis (RCA). Your task is to analyze failed transaction data, error logs, and service metrics to identify the root cause of failures. Generate a structured, clear, and actionable report in Spanish.
+
+        ## Alert Context
+        - **Rule name:** {{ event.alerts[0].kibana.alert.rule.name }}
+        - **Alert reason:** {{ event.alerts[0].kibana.alert.reason }}
+        - **Alert ID:** {{ event.alerts[0].kibana.alert.uuid }}
+        - **Alert status:** {{ event.alerts[0].kibana.alert.status }}
+        - **Alert start:** {{ event.alerts[0].kibana.alert.start }}
+        - **Service name:** {{ event.alerts[0].service.name }}
+        - **Service environment:** {{ event.alerts[0].service.environment }}
+        - **Transaction type:** {{ event.alerts[0].kibana.alert.rule.parameters.transactionType }}
+        - **Transaction name:** {{ event.alerts[0].transaction.name }}
+        - **Failure threshold:** {{ event.alerts[0].kibana.alert.rule.parameters.threshold }}%
+        - **Observed failure rate:** {{ event.alerts[0].kibana.alert.evaluation.value }}%
+
+        ## Instructions
+        Investigate the RCA using available tools and generate the FINAL report. 
+
+        CRITICAL OUTPUT CONSTRAINTS:
+        1. DO NOT summarize your findings. Output the FULL, comprehensive report.
+        2. DO NOT include conversational filler, greetings, or introductory phrases like "Aquí tienes el informe" or "A continuación un resumen".
+        3. Your ENTIRE final response MUST be ONLY the raw Markdown code for the report.
+        4. All timestamps MUST be converted from UTC to CET.
+
+        The report MUST strictly contain the following sections in this exact order:
+        1. **Resumen Ejecutivo**: Brief description of the incident.
+        2. **Servicios Afectados**: List of services with failed transactions and their impact.
+        3. **Causa Raíz Identificada**: Detailed root cause analysis based on the available data.
+        4. **Timeline**: Sequence of events that led to the failure.
+        5. **Impacto**: Quantification of the impact (number of failed transactions, affected services, duration).
+        6. **Acciones de Remediación**: Recommended steps to resolve the immediate problem.
+        7. **Acciones Preventivas**: Recommendations to avoid recurrence.
+    timeout: 10m
+  - name: format_final_report
+    type: console
+    with:
+      message: |-
+        {{ steps.run_rca.output.message }}
+
+        ---
+        [👉 Abrir Service Overview en Elastic APM](/app/apm/services/{{ event.alerts[0].service.name }}/overview)
+        [🚨 Ver Alerta en Elastic](/app/observability/alerts/{{ event.alerts[0].kibana.alert.uuid }})
+  - name: create_case
+    type: cases.createCase
+    with:
+      description: "{{ steps.format_final_report.output }}"
+      owner: observability
+      severity: high
+      tags:
+        - apm
+        - rca
+        - automated
+      title: Automatic RCA for service {{ event.alerts[0].service.name }}
+    push-case: false
+  - name: add_alert_to_case
+    type: cases.addAlerts
+    with:
+      case_id: "{{ steps.create_case.output.case.id }}"
+      alerts:
+        - alertId: "{{ event.alerts[0]._id }}"
+          index: "{{ event.alerts[0]._index }}"
+          rule:
+            id: "{{ event.rule.id }}"
+            name: "{{ event.rule.name }}"
+    push-case: false
+  - name: send_email
+    type: email
+    with:
+      to:
+        - __RCA_NOTIFICATION_EMAIL__
+      subject: RCA Report — {{ event.alerts[0].service.name }} failed transaction rate alert
+      message: "{{ steps.format_final_report.output }}"
+    connector-id: Elastic-Cloud-SMTP
