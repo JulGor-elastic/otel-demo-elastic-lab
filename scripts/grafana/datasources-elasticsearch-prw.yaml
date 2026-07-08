@@ -1,6 +1,10 @@
 # Reference copy of the Grafana datasource provisioned via Helm (grafana.extraObjects).
-# Source of truth: otel-values.yaml.j2
+# Source of truth: otel-values.yaml.j2 (keep in sync)
 #
+# URL is built from elastic_es_endpoint (derived from elastic_motlp_endpoint in group_vars/all.yml):
+#   {{ elastic_es_endpoint }}/_prometheus/metrics-{{ prometheus_data_stream_dataset }}.prometheus-{{ prometheus_data_stream_namespace }}
+#
+# timeInterval 60s: aligns query step with the chart's Prometheus datasource (not prometheus_scrape_interval).
 # Docs: https://www.elastic.co/docs/reference/query-languages/promql/promql-grafana
 
 apiVersion: 1
@@ -10,11 +14,11 @@ datasources:
     uid: elasticsearch-prometheus
     type: prometheus
     access: proxy
-    url: "https://<project>.es.<region>.aws.elastic.cloud/_prometheus/metrics-otel-demo.prometheus-default"
+    url: "https://YOUR_PROJECT_ID.es.REGION.aws.elastic.cloud/_prometheus/metrics-otel_demo.prometheus-default"
     editable: true
     isDefault: false
     jsonData:
-      timeInterval: "15s"
+      timeInterval: "60s"
       httpHeaderName1: Authorization
     secureJsonData:
       httpHeaderValue1: "ApiKey <base64-api-key>"

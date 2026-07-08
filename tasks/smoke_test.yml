@@ -1,10 +1,5 @@
 ---
-- name: Smoke test | Run ordered OTel Demo readiness wait
-  script: scripts/wait-otel-demo-ready.sh
-  environment:
-    KUBECONFIG: /root/.kube/config
-    OTEL_DEMO_NAMESPACE: "{{ otel_demo_namespace }}"
-    WAIT_TIMEOUT: "{{ otel_demo_wait_timeout }}"
+# HTTP/curl checks only — readiness wait runs in deploy.yml task 11 (wait-otel-demo-ready.sh).
 
 - name: Smoke test | Verify frontend-proxy responds inside the cluster
   shell: |

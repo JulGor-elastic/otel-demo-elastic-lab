@@ -28,13 +28,17 @@ Jaeger and OpenSearch are disabled. **OTLP** (via EDOT) and **Prometheus Remote 
 
 ## Prerequisites
 
-- A GCP VM with outbound internet access (Ubuntu recommended, `e2-standard-8` or similar)
-- SSH access from your workstation (`gcloud compute ssh` or standard SSH)
-- [Ansible](https://docs.ansible.com/) on your local machine
-- An Elastic Cloud Serverless project with:
-  - mOTLP ingest endpoint and API key (OTLP via EDOT)
-  - Prometheus Remote Write ingest URL (Ingest endpoint + `/api/v1/write`)
-  - EDOT Kubernetes onboarding ID (Kibana → **Add data** → **Kubernetes** → **OpenTelemetry**)
+You provide an existing Linux VM; this repo does not create cloud infrastructure.
+
+- **VM:** Ubuntu 22.04/24.04, ≥ 4 vCPU, ≥ 12 GB RAM, ≥ 40 GB disk, outbound internet, SSH access  
+- **Workstation:** [Ansible](https://docs.ansible.com/), `curl`, `jq` (for Synthetics monitor push)  
+- **Elastic Cloud Serverless** project with mOTLP, Prometheus Remote Write, and Kibana access  
+
+**Full requirements, example `gcloud` commands, and configuration reference:**  
+→ **[docs/environment-setup.md](docs/environment-setup.md)**
+
+**Project status and roadmap:**  
+→ **[docs/action-plan.md](docs/action-plan.md)**
 
 ## Quick start
 
@@ -51,7 +55,7 @@ cp config.mk.example config.mk
 | File | Purpose |
 |------|---------|
 | `hosts.ini` | VM IP address and SSH settings |
-| `vars.yml` | Elastic mOTLP endpoint, **ES query endpoint** (`elastic_es_endpoint`), API key, onboarding ID, Prometheus Remote Write URL, Helm versions |
+| `vars.yml` | Elastic credentials + Helm pins; optional blocks for scenarios / Synthetics — see [environment-setup.md](docs/environment-setup.md) |
 | `config.mk` | GCP VM name, zone, SSH user (for `make demo-tunnel`) |
 
 ### 2. Deploy
@@ -98,9 +102,9 @@ Prometheus keeps metrics locally for **30 minutes** (configurable via `prometheu
 
 Default data stream: `metrics-otel_demo.prometheus-default` (set `prometheus_data_stream_dataset` to match ES; PRW maps hyphens to underscores). Override namespace with `prometheus_data_stream_namespace`.
 
-Grafana dashboards include a **Data Source** variable (`DS_PROMETHEUS`). After deploy, switch between **Prometheus** (in-cluster) and **Elasticsearch** (PRW via PromQL API) to compare the same metrics. Requires `elastic_es_endpoint` in `vars.yml`.
+Grafana dashboards include a **Data Source** variable (`DS_PROMETHEUS`). After deploy, switch between **Prometheus** (in-cluster) and **Elasticsearch** (PRW via PromQL API) to compare the same metrics. `elastic_es_endpoint` is derived from `elastic_motlp_endpoint` automatically (see `group_vars/all.yml`).
 
-## Demo scenarios (Phase 4)
+## Optional: Demo scenarios (remote automation)
 
 Orchestrate incident and recovery scripts on the lab VM from **GitHub Actions** or **Elastic Serverless Workflows**, without inbound access to the VM.
 
@@ -124,6 +128,17 @@ make demo-scenario-incident-payment
 make demo-scenario-reset-lab
 ```
 
+## Optional: Synthetics
+
+Private Location + HTTP/TCP monitors from inside the cluster. **No Node.js** — monitors are pushed via Kibana API (`curl` + `jq`).
+
+**Full guide:** → **[docs/phase2-synthetics.md](docs/phase2-synthetics.md)**
+
+```bash
+make synthetics-setup      # first time: agent + location + monitors
+make synthetics-push       # after editing synthetics/monitors.json
+```
+
 ## Makefile targets
 
 | Target | Description |
@@ -133,6 +148,9 @@ make demo-scenario-reset-lab
 | `make demo-check` | Smoke tests without redeploying |
 | `make demo-tunnel` | SSH tunnel to the demo frontend |
 | `make demo-scenario-<name>` | Run scenario on VM (`incident-payment`, `recover-payment`, `reset-lab`, `oom-pressure`) |
+| `make synthetics-setup` | Deploy Fleet agent + Private Location + push monitors |
+| `make synthetics-deploy` | Deploy `elastic-synthetics-agent` pod only |
+| `make synthetics-configure` | Wait Fleet, create Private Location, push monitors |
 | `make help` | List available targets |
 
 ## Pinned Helm versions
@@ -148,17 +166,25 @@ Configured in `vars.yml` (see `vars.yml.example`):
 ## Project layout
 
 ```
+├── group_vars/all.yml      # Derived Elastic URLs from elastic_motlp_endpoint
 ├── deploy.yml              # Main Ansible playbook
 ├── check.yml               # Standalone smoke tests
 ├── otel-values.yaml.j2     # Helm values for the OTel Demo
 ├── tasks/smoke_test.yml    # Shared smoke test tasks
 ├── scripts/
 │   ├── wait-otel-demo-ready.sh   # Ordered pod readiness + remediation
-│   ├── scenarios/                # Phase 4 demo scenarios (kubectl)
+│   ├── scenarios/                # Demo scenario scripts (kubectl)
 │   ├── workflows/                # Elastic Workflows YAML + deploy scripts
+│   ├── synthetics/               # Fleet, Private Location, Kibana API push
 │   └── github/install-runner.sh  # Self-hosted Actions runner setup
+├── synthetics/
+│   ├── monitors.json             # Synthetics monitor definitions
+│   └── retired-monitors.json     # Optional: names to remove on push
 ├── docs/
-│   └── demo-scenarios-setup.md   # Phase 4: fork, runner, Workflows (full guide)
+│   ├── action-plan.md            # Internal roadmap / status (maintainer)
+│   ├── environment-setup.md      # VM requirements, vars.yml reference
+│   ├── demo-scenarios-setup.md   # Fork, runner, Workflows (full guide)
+│   └── phase2-synthetics.md      # Synthetics Private Location setup
 ├── vars.yml.example        # Elastic / Helm configuration template
 ├── hosts.ini.example       # Ansible inventory template
 ├── config.mk.example       # Local GCP / SSH overrides template
@@ -167,18 +193,21 @@ Configured in `vars.yml` (see `vars.yml.example`):
 
 ## Known limitations
 
-- **VM provisioning** is manual (GCP `gcloud`); Terraform automation is planned.
+- **VM provisioning** is the user's responsibility; see [docs/environment-setup.md](docs/environment-setup.md) for requirements and an example `gcloud` command.
 - **Pod startup order**: on resource-constrained Minikube, some services may start before their dependencies. The wait script restarts flagd-dependent deployments and applies rollout restarts; `ad` / `fraud-detection` memory is raised to 512Mi in Helm values (needed after enabling Prometheus/Grafana).
 - **Smoke tests** fail on OOMKilled or non-Ready pods, not only HTTP checks.
+- **Synthetics Private Locations** on Elastic 9.4.x: creating new locations may fail; reuse an existing location (see [phase2-synthetics.md](docs/phase2-synthetics.md)).
 
-## Roadmap
+## Optional components
 
-- ~~Prometheus Remote Write → Elastic~~ (implemented)
-- ~~Grafana in-cluster~~ (implemented; dashboard migration to Kibana pending)
-- ~~Demo scenarios + Elastic Workflows~~ (Phase 4 — see [docs/demo-scenarios-setup.md](docs/demo-scenarios-setup.md))
-- Elastic RUM and Synthetics
-- Business-order indexing for demo narratives
-- Full IaC (Terraform) for GCP and Elastic stack objects
+| Component | What it adds | Setup |
+|-----------|--------------|-------|
+| **Core lab** | OTel Demo + EDOT + Grafana/PRW | `make deploy` (above) |
+| **Demo scenarios** | Remote incidents via GitHub / Kibana Workflows | [demo-scenarios-setup.md](docs/demo-scenarios-setup.md) |
+| **Synthetics** | In-cluster HTTP/TCP monitors | [phase2-synthetics.md](docs/phase2-synthetics.md) |
+| **Business orders** | Orders index + Kibana dashboard | `scripts/elasticsearch/create-orders-transform.sh` |
+
+Maintainer roadmap and historical phase tracking: [docs/action-plan.md](docs/action-plan.md).
 
 ## License
 

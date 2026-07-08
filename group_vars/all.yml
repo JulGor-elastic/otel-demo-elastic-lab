@@ -1,0 +1,23 @@
+---
+# Derived Elastic endpoints (override any value in vars.yml if your project uses non-standard hostnames).
+# Legacy names elastic_endpoint / elastic_token are still accepted in vars.yml.
+
+_elastic_motlp_base: "{{ elastic_motlp_endpoint | default(elastic_endpoint, true) }}"
+_elastic_api_key_val: "{{ elastic_api_key | default(elastic_token, true) }}"
+
+elastic_motlp_endpoint: "{{ _elastic_motlp_base }}"
+elastic_api_key: "{{ _elastic_api_key_val }}"
+
+elastic_es_endpoint: >-
+  {{
+    _elastic_motlp_base
+    | regex_replace('\.ingest\.', '.es.')
+    | regex_replace('/$', '')
+    | regex_replace(':443$', '')
+  }}
+
+elastic_prometheus_remote_write_url: >-
+  {{
+    (_elastic_motlp_base | regex_replace('/$', '') | regex_replace(':443$', ''))
+    ~ '/api/v1/write'
+  }}

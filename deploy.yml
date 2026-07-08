@@ -70,8 +70,8 @@
       shell: >
         kubectl create secret generic elastic-secret-otel
         --namespace opentelemetry-operator-system
-        --from-literal=elastic_otlp_endpoint='{{ elastic_endpoint }}'
-        --from-literal=elastic_api_key='{{ elastic_token }}'
+        --from-literal=elastic_otlp_endpoint='{{ elastic_motlp_endpoint }}'
+        --from-literal=elastic_api_key='{{ elastic_api_key }}'
         --dry-run=client -o yaml | kubectl apply -f -
       environment:
         KUBECONFIG: /root/.kube/config
@@ -122,6 +122,7 @@
         --wait --timeout 20m
       environment:
         KUBECONFIG: /root/.kube/config
+      tags: [helm_demo]
 
     - name: 11. Ordered wait and pod remediation for OTel Demo
       script: scripts/wait-otel-demo-ready.sh
@@ -129,6 +130,8 @@
         KUBECONFIG: /root/.kube/config
         OTEL_DEMO_NAMESPACE: "{{ otel_demo_namespace }}"
         WAIT_TIMEOUT: "{{ otel_demo_wait_timeout }}"
+      tags: [post_deploy]
 
     - name: 12. Smoke tests
       import_tasks: tasks/smoke_test.yml
+      tags: [smoke]

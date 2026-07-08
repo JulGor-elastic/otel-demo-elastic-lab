@@ -3,7 +3,7 @@
 #
 # Prerequisites:
 #   export ES_URL="https://<project>.es.<region>.aws.elastic.cloud"
-#   export ES_API_KEY="<base64-api-key>"   # from vars.yml elastic_token
+#   export ES_API_KEY="<base64-api-key>"   # from vars.yml elastic_api_key
 #
 # Usage:
 #   ./scripts/elasticsearch/create-orders-transform.sh

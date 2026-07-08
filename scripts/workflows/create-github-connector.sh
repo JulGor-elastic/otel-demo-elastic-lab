@@ -22,13 +22,13 @@
 set -euo pipefail
 
 KIBANA_URL="${KIBANA_URL:?Set KIBANA_URL}"
-ELASTIC_API_KEY="${ELASTIC_API_KEY:-${elastic_token:-}}"
+ELASTIC_API_KEY="${ELASTIC_API_KEY:-${elastic_api_key:-${elastic_token:-}}}"
 GITHUB_PAT="${GITHUB_PAT:?Set GITHUB_PAT}"
 CONNECTOR_ID="${CONNECTOR_ID:-otel-demo-github}"
 CONNECTOR_NAME="${CONNECTOR_NAME:-OTel Demo GitHub API}"
 
 if [[ -z "${ELASTIC_API_KEY}" ]]; then
-  echo "Set ELASTIC_API_KEY or elastic_token" >&2
+  echo "Set ELASTIC_API_KEY or elastic_api_key in vars.yml" >&2
   exit 1
 fi
 

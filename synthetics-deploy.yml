@@ -1,0 +1,30 @@
+---
+# Deploy Fleet-managed Elastic Agent for Synthetics Private Location on the lab VM.
+# Prerequisites: fleet_url, fleet_enrollment_token in vars.yml (one-time Fleet agent policy).
+#
+# Usage:
+#   ansible-playbook -i hosts.ini synthetics-deploy.yml
+#   make synthetics-deploy
+
+- name: Deploy Synthetics Fleet agent on lab VM
+  hosts: gcp_vm
+  become: yes
+  vars_files:
+    - vars.yml
+  tasks:
+    - name: Synthetics | Set deployment variables
+      set_fact:
+        synthetics_namespace: "{{ otel_demo_namespace }}"
+        synthetics_agent_flavor: "{{ synthetics_agent_flavor | default('standard') }}"
+        synthetics_limit_http: "{{ synthetics_limit_http | default('100') }}"
+        synthetics_limit_browser: "{{ synthetics_limit_browser | default('0') }}"
+        synthetics_agent_memory_request: "{{ synthetics_agent_memory_request | default('512Mi') }}"
+        synthetics_agent_memory_limit: "{{ synthetics_agent_memory_limit | default('1Gi') }}"
+        synthetics_agent_cpu_request: "{{ synthetics_agent_cpu_request | default('500m') }}"
+        synthetics_agent_cpu_limit: "{{ synthetics_agent_cpu_limit | default('2000m') }}"
+        synthetics_agent_image: >-
+          {{ ('docker.elastic.co/elastic-agent/elastic-agent-complete:' ~ (synthetics_agent_tag | default(elastic_agent_ref | regex_replace('^v', ''))))
+             if (synthetics_agent_flavor | default('standard')) == 'complete'
+             else ('docker.elastic.co/elastic-agent/elastic-agent:' ~ (synthetics_agent_tag | default(elastic_agent_ref | regex_replace('^v', '')))) }}
+
+    - import_tasks: tasks/synthetics_agent.yml

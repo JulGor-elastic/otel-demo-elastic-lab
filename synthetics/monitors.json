@@ -1,0 +1,26 @@
+[
+  {
+    "id": "otel-demo-storefront",
+    "name": "OTel Demo Storefront",
+    "type": "http",
+    "urls": "http://frontend-proxy:8080/",
+    "schedule": 5,
+    "tags": ["otel-demo", "lab"]
+  },
+  {
+    "id": "otel-demo-api-products",
+    "name": "OTel Demo API Products",
+    "type": "http",
+    "urls": "http://frontend-proxy:8080/api/products",
+    "schedule": 5,
+    "tags": ["otel-demo", "lab"]
+  },
+  {
+    "id": "otel-demo-payment",
+    "name": "OTel Demo Payment",
+    "type": "tcp",
+    "hosts": "payment:8080",
+    "schedule": 5,
+    "tags": ["otel-demo", "lab", "scenarios"]
+  }
+]

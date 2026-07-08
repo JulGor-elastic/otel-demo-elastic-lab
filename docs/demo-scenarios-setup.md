@@ -94,7 +94,7 @@ git push -u origin main
 
 ### Configure `vars.yml` (workstation)
 
-Add or update the Phase 4 block in your local `vars.yml` (gitignored):
+Add or update the demo-scenarios block in your local `vars.yml` (gitignored):
 
 ```yaml
 kibana_url: "https://YOUR_PROJECT_ID.kb.REGION.aws.elastic.cloud"
@@ -125,21 +125,40 @@ Runner labels required: `self-hosted`, `otel-demo`
 
 ## Step 3 — Create a GitHub Personal Access Token (PAT)
 
-Used **once** to register the self-hosted runner (and optionally stored in Kibana for Workflows).
+Used to register the self-hosted runner (one-time) and stored in Kibana for Workflows (long-lived).
 
-### Classic token (recommended)
+### Token lifetime (important)
+
+| Token type | Typical expiry | Impact when it expires |
+|------------|----------------|------------------------|
+| **Fine-grained PAT** | Often **30 days** (GitHub default at creation) | Kibana Workflows fail to dispatch GitHub Actions (`401` / `403` from GitHub API) |
+| **Classic PAT** | You choose at creation (30 days, 90 days, or no expiry) | Same for Kibana connector; runner keeps working if install PAT was revoked after registration |
+
+**The self-hosted runner does not need the PAT after registration** — only the Kibana HTTP connector does (every workflow dispatch).
+
+When a PAT expires:
+
+1. Workflows in Kibana stop triggering GitHub Actions (connector auth fails).
+2. The runner on the VM stays **Idle** and healthy — nothing breaks on the cluster itself.
+3. `make demo-scenario-*` and manual GitHub Actions runs still work (they do not use the Kibana connector).
+
+### Create the token
+
+#### Classic token (recommended)
 
 1. https://github.com/settings/tokens → **Generate new token (classic)**
 2. Note: e.g. `otel-demo-runner-install`
-3. Scope: **`repo`** (full control of private repositories; sufficient for public repos too)
-4. Copy the token (`ghp_...`) — shown only once.
+3. Expiration: choose **90 days** or **No expiration** for the Kibana connector PAT; **30 days** is fine for a one-time runner install token you revoke immediately after.
+4. Scope: **`repo`** (full control of private repositories; sufficient for public repos too)
+5. Copy the token (`ghp_...`) — shown only once.
 
-### Fine-grained token (alternative)
+#### Fine-grained token (alternative)
 
 - Repository access: **only your lab repo**
 - Permissions: **Administration** Read and write, **Actions** Read and write, **Contents** Read
+- Set expiration to the maximum you are comfortable with (or renew every 30 days)
 
-Revoke the install token after the runner is registered if you prefer; the runner keeps working without it.
+Revoke the **install-only** token after the runner is registered if you prefer; the runner keeps working without it.
 
 ---
 
@@ -242,6 +261,8 @@ Trigger the same scenarios from **Kibana → Workflows** so demos don't require 
 
 Store a GitHub PAT (needs **`repo`** + **`workflow`** for `workflow_dispatch`) in Kibana connectors — not in workflow YAML.
 
+Use a PAT with an expiration you can maintain (see [Step 3 — Token lifetime](#token-lifetime-important)). When it expires, update the connector (below) — no script required beyond re-running the create script.
+
 Use the **HTTP** connector type (`.http`, for Workflows). Do **not** use the generic **Webhook** connector (`.webhook`) — it uses a different schema and returns HTTP 400 with the install script's old payload.
 
 **From your workstation:**
@@ -321,6 +342,28 @@ export GITHUB_REF="main"
 | Job fails at kubectl | No sudo / wrong kubeconfig | `sudo kubectl get pods -n otel-demo` on VM |
 | Workflow dispatch 404 from Kibana | Wrong owner/repo in workflow consts | Re-run `deploy-workflows.sh` with correct env |
 | Connector create HTTP 400 | Wrong connector type (`.webhook` vs `.http`) | Use updated `create-github-connector.sh` or HTTP connector in UI |
+| Workflow dispatch fails from Kibana (`401`/`403`) | GitHub PAT expired or revoked | Create new PAT → re-run `create-github-connector.sh` (updates connector on HTTP 409) |
+
+---
+
+## Renewing an expired GitHub PAT (Kibana connector)
+
+No new runner install needed. From your workstation:
+
+```bash
+# New PAT from https://github.com/settings/tokens
+export KIBANA_URL="https://YOUR_PROJECT_ID.kb.REGION.aws.elastic.cloud"
+export ELASTIC_API_KEY="YOUR_KIBANA_API_KEY"   # elastic_api_key from vars.yml
+export GITHUB_PAT="ghp_NEW_TOKEN"
+
+./scripts/workflows/create-github-connector.sh
+```
+
+The script **updates** the existing connector (`PUT` on HTTP 409) — password field receives the new PAT.
+
+**Or via UI:** Kibana → **Stack Management** → **Connectors** → open `otel-demo-github` → edit → update the basic-auth password → save.
+
+Verify: Kibana → **Workflows** → run **OTel Demo — reset lab** → confirm a new run appears under GitHub **Actions**.
 
 ### Runner service logs (VM)
 
@@ -343,8 +386,8 @@ Then repeat Step 4. Removal tokens: repo **Settings → Actions → Runners** �
 ## Security notes
 
 - Never commit `vars.yml`, `hosts.ini`, or API keys (see `.gitignore`).
-- Revoke one-time install PATs after runner registration.
-- Store the GitHub PAT used by Kibana in **connector secrets**, not in workflow YAML committed to git.
+- Revoke one-time **runner install** PATs after registration.
+- **Kibana connector PAT:** renew before expiry (see [Renewing an expired GitHub PAT](#renewing-an-expired-github-pat-kibana-connector)); store only in connector secrets, not in git.
 - The VM stays **without inbound** exposure; only outbound HTTPS to GitHub and Elastic.
 - Use a dedicated PAT or fine-grained token scoped to your lab repo only.
 

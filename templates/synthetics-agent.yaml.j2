@@ -1,0 +1,64 @@
+# Fleet-managed Elastic Agent for Synthetics Private Location (HTTP/TCP/ICMP).
+# Browser monitors require elastic-agent-complete — set synthetics_agent_flavor: complete in vars.yml.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: elastic-synthetics-fleet-enroll
+  namespace: {{ synthetics_namespace }}
+type: Opaque
+stringData:
+  FLEET_ENROLLMENT_TOKEN: "{{ fleet_enrollment_token }}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elastic-synthetics-agent
+  namespace: {{ synthetics_namespace }}
+  labels:
+    app: elastic-synthetics-agent
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: elastic-synthetics-agent
+  template:
+    metadata:
+      labels:
+        app: elastic-synthetics-agent
+      annotations:
+        # Force pod rollout when enrollment token changes (token alone does not restart pods).
+        fleet.enrollment-token-hash: "{{ fleet_enrollment_token | hash('sha256') }}"
+    spec:
+      containers:
+        - name: elastic-agent
+          image: "{{ synthetics_agent_image }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: FLEET_ENROLL
+              value: "1"
+            - name: FLEET_URL
+              value: "{{ fleet_url }}"
+            - name: FLEET_ENROLLMENT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: elastic-synthetics-fleet-enroll
+                  key: FLEET_ENROLLMENT_TOKEN
+            - name: SYNTHETICS_LIMIT_HTTP
+              value: "{{ synthetics_limit_http }}"
+            - name: SYNTHETICS_LIMIT_BROWSER
+              value: "{{ synthetics_limit_browser }}"
+          securityContext:
+            capabilities:
+              add:
+                - NET_RAW
+                - SETUID
+          resources:
+            requests:
+              memory: "{{ synthetics_agent_memory_request }}"
+              cpu: "{{ synthetics_agent_cpu_request }}"
+            limits:
+              memory: "{{ synthetics_agent_memory_limit }}"
+              cpu: "{{ synthetics_agent_cpu_limit }}"
+      restartPolicy: Always

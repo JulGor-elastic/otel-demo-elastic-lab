@@ -35,7 +35,7 @@ prometheus:
         - url: "{{ elastic_prometheus_remote_write_url }}"
           authorization:
             type: ApiKey
-            credentials: "{{ elastic_token }}"
+            credentials: "{{ elastic_api_key }}"
           write_relabel_configs:
             - target_label: data_stream_dataset
               replacement: "{{ prometheus_data_stream_dataset }}"
@@ -75,10 +75,12 @@ grafana:
               editable: true
               isDefault: false
               jsonData:
-                timeInterval: "{{ prometheus_scrape_interval }}"
+                # Match in-cluster Prometheus datasource (chart default ~60s), not scrape interval.
+                # Finer steps (15s) cause jagged Grafana panels vs Prometheus on ES PromQL.
+                timeInterval: "60s"
                 httpHeaderName1: Authorization
               secureJsonData:
-                httpHeaderValue1: "ApiKey {{ elastic_token }}"
+                httpHeaderValue1: "ApiKey {{ elastic_api_key }}"
 
 # Minikube + Prometheus/Grafana increases memory pressure; defaults (300Mi) OOM on ad/fraud-detection
 components:

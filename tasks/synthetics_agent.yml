@@ -1,0 +1,70 @@
+---
+- name: Synthetics agent | Validate Fleet settings
+  assert:
+    that:
+      - fleet_url is defined and fleet_url | length > 0
+      - fleet_enrollment_token is defined and fleet_enrollment_token | length > 0
+    fail_msg: "Set fleet_url and fleet_enrollment_token in vars.yml (Fleet → Enrollment tokens)."
+
+- name: Synthetics agent | Ensure namespace exists
+  command: kubectl create namespace {{ synthetics_namespace }}
+  environment:
+    KUBECONFIG: /root/.kube/config
+  register: synthetics_ns
+  failed_when: synthetics_ns.rc != 0 and 'AlreadyExists' not in synthetics_ns.stderr
+  changed_when: synthetics_ns.rc == 0
+
+- name: Synthetics agent | Render Kubernetes manifest
+  template:
+    src: synthetics-agent.yaml.j2
+    dest: /opt/otel-demo/synthetics-agent.yaml
+    mode: "0644"
+
+- name: Synthetics agent | Apply manifest
+  command: kubectl apply -f /opt/otel-demo/synthetics-agent.yaml
+  environment:
+    KUBECONFIG: /root/.kube/config
+  register: synthetics_apply
+  changed_when: "'configured' in synthetics_apply.stdout or 'created' in synthetics_apply.stdout"
+
+- name: Synthetics agent | Rollout restart (pick up secret / template changes)
+  command: kubectl rollout restart deployment/elastic-synthetics-agent -n {{ synthetics_namespace }}
+  environment:
+    KUBECONFIG: /root/.kube/config
+  register: synthetics_restart
+  changed_when: "'restarted' in synthetics_restart.stdout"
+
+- name: Synthetics agent | Wait for rollout after restart
+  command: >
+    kubectl rollout status deployment/elastic-synthetics-agent
+    --timeout=300s
+    -n {{ synthetics_namespace }}
+  environment:
+    KUBECONFIG: /root/.kube/config
+  changed_when: false
+
+- name: Synthetics agent | Wait for pod Running
+  command: >
+    kubectl wait deployment/elastic-synthetics-agent
+    --for=condition=Available
+    --timeout=300s
+    -n {{ synthetics_namespace }}
+  environment:
+    KUBECONFIG: /root/.kube/config
+  changed_when: false
+
+- name: Synthetics agent | Show pod status
+  command: kubectl get pods -n {{ synthetics_namespace }} -l app=elastic-synthetics-agent
+  environment:
+    KUBECONFIG: /root/.kube/config
+  register: synthetics_pods
+  changed_when: false
+
+- name: Synthetics agent | Summary
+  debug:
+    msg:
+      - "Elastic Agent pod deployed in namespace {{ synthetics_namespace }}"
+      - "If you changed fleet_agent_policy_name, run: ./scripts/synthetics/reassign-fleet-agent.sh"
+      - "Next (from your workstation): make synthetics-configure"
+      - "Fleet → Agents should show the agent as Healthy within 2–3 minutes"
+      - "{{ synthetics_pods.stdout_lines }}"

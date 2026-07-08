@@ -17,3 +17,6 @@ Untitled
 # Optional local env overrides
 .env
 .env.*
+
+# Synthetics CLI cache (if ever used locally)
+synthetics/.synthetics/

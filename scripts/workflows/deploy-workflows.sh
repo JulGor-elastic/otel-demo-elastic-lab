@@ -20,14 +20,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 KIBANA_URL="${KIBANA_URL:?Set KIBANA_URL}"
-ELASTIC_API_KEY="${ELASTIC_API_KEY:-${elastic_token:-}}"
+ELASTIC_API_KEY="${ELASTIC_API_KEY:-${elastic_api_key:-${elastic_token:-}}}"
 GITHUB_HTTP_CONNECTOR_ID="${GITHUB_HTTP_CONNECTOR_ID:-${github_http_connector_id:-}}"
 GITHUB_REPO_OWNER="${GITHUB_REPO_OWNER:-${github_repo_owner:-}}"
 GITHUB_REPO_NAME="${GITHUB_REPO_NAME:-${github_repo_name:-}}"
 GITHUB_REF="${GITHUB_REF:-${github_ref:-main}}"
 
 if [[ -z "${ELASTIC_API_KEY}" ]]; then
-  echo "Set ELASTIC_API_KEY or elastic_token" >&2
+  echo "Set ELASTIC_API_KEY or elastic_api_key in vars.yml" >&2
   exit 1
 fi
 if [[ -z "${GITHUB_HTTP_CONNECTOR_ID}" || -z "${GITHUB_REPO_OWNER}" || -z "${GITHUB_REPO_NAME}" ]]; then

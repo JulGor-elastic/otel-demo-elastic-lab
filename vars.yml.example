@@ -1,23 +1,22 @@
 # Copy this file to vars.yml and fill in your real values.
 # vars.yml is gitignored and must not be committed.
 
-# Elastic Cloud Serverless — mOTLP endpoint (Add data → OpenTelemetry → Elastic Distributions)
-elastic_endpoint: "https://YOUR_PROJECT_ID.ingest.REGION.aws.elastic.cloud:443"
+# --- Elastic Cloud Serverless (required) ---
 
-# Elasticsearch query endpoint for Grafana PromQL datasource (replace ingest → es, drop :443)
-# Example: https://YOUR_PROJECT_ID.es.REGION.aws.elastic.cloud
-elastic_es_endpoint: "https://YOUR_PROJECT_ID.es.REGION.aws.elastic.cloud"
+# mOTLP ingest URL — Kibana → Add data → OpenTelemetry → Elastic Distributions
+# Example: https://YOUR_PROJECT_ID.ingest.REGION.aws.elastic.cloud:443
+elastic_motlp_endpoint: "https://YOUR_PROJECT_ID.ingest.REGION.aws.elastic.cloud:443"
 
-# API key with ingest permissions for the project
-elastic_token: "YOUR_BASE64_API_KEY"
+# API key (base64) with ingest permissions for the project
+elastic_api_key: "YOUR_BASE64_API_KEY"
 
-# Kibana onboarding ID (Add data → Kubernetes → OpenTelemetry / EDOT)
+# Kibana onboarding ID — Add data → Kubernetes → OpenTelemetry / EDOT
 edot_onboarding_id: "00000000-0000-0000-0000-000000000000"
 
-# Prometheus Remote Write (Serverless: Ingest endpoint + /api/v1/write)
-# Kibana → Project → Manage → Ingest → copy endpoint, append /api/v1/write
-# Docs: https://www.elastic.co/docs/reference/opentelemetry/motlp/prometheus-remote-write
-elastic_prometheus_remote_write_url: "https://YOUR_PROJECT_ID.ingest.REGION.aws.elastic.cloud/api/v1/write"
+# Derived automatically from elastic_motlp_endpoint (set here only to override):
+# elastic_es_endpoint: "https://YOUR_PROJECT_ID.es.REGION.aws.elastic.cloud"
+# elastic_prometheus_remote_write_url: "https://YOUR_PROJECT_ID.ingest.REGION.aws.elastic.cloud/api/v1/write"
+
 # PRW normalizes hyphens → underscores in the ES data stream name (otel-demo → otel_demo)
 prometheus_data_stream_dataset: "otel_demo"
 prometheus_data_stream_namespace: "default"
@@ -32,15 +31,21 @@ elastic_agent_ref: "v9.4.2"
 
 # --- OTel Demo ---
 otel_demo_release_name: "my-otel-demo"
-# Must match the namespace of the existing Helm release (default chart namespace: otel-demo)
 otel_demo_namespace: "otel-demo"
-otel_demo_wait_timeout: "600"
+# Seconds for kubectl wait / rollout status in wait-otel-demo-ready.sh (per phase, not total).
+otel_demo_wait_timeout: "180"
 
-# --- Phase 4: Elastic Workflows → GitHub Actions → VM scenarios ---
-# Kibana URL (Serverless: https://YOUR_PROJECT_ID.kb.REGION.aws.elastic.cloud)
+# --- Optional: Demo scenarios (GitHub Actions + Elastic Workflows) ---
+# See docs/demo-scenarios-setup.md
 kibana_url: "https://YOUR_PROJECT_ID.kb.REGION.aws.elastic.cloud"
-# HTTP connector ID in Kibana (create via scripts/workflows/create-github-connector.sh)
 github_http_connector_id: "otel-demo-github"
 github_repo_owner: "YOUR_GITHUB_USER_OR_ORG"
 github_repo_name: "YOUR_REPO_NAME"
 github_ref: "main"
+
+# --- Optional: Synthetics Private Location ---
+# See docs/phase2-synthetics.md
+fleet_url: "https://YOUR_PROJECT.fleet.REGION.aws.elastic.cloud:443"
+fleet_enrollment_token: "YOUR_FLEET_ENROLLMENT_TOKEN"
+fleet_agent_policy_name: "OTel Demo Synthetics"
+synthetics_private_location_name: "Private Location IaaS Demo OTel"
