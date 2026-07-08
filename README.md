@@ -55,7 +55,7 @@ cp config.mk.example config.mk
 | File | Purpose |
 |------|---------|
 | `hosts.ini` | VM IP address and SSH settings |
-| `vars.yml` | Elastic credentials + Helm pins; optional blocks for scenarios / Synthetics — see [environment-setup.md](docs/environment-setup.md) |
+| `vars.yml` | Elastic credentials + Helm pins; optional blocks for Kibana, scenarios, Synthetics — see [environment-setup.md](docs/environment-setup.md) |
 | `config.mk` | GCP VM name, zone, SSH user (for `make demo-tunnel`) |
 
 ### 2. Deploy
@@ -104,6 +104,73 @@ Default data stream: `metrics-otel_demo.prometheus-default` (set `prometheus_dat
 
 Grafana dashboards include a **Data Source** variable (`DS_PROMETHEUS`). After deploy, switch between **Prometheus** (in-cluster) and **Elasticsearch** (PRW via PromQL API) to compare the same metrics. `elastic_es_endpoint` is derived from `elastic_motlp_endpoint` automatically (see `group_vars/all.yml`).
 
+## Deploying a new lab
+
+End-to-end checklist for a **fresh VM + Elastic Serverless project**. Only step 1 is required; the rest are optional and safe to run in any order (each step skips objects that already exist).
+
+### 1. Core stack (required)
+
+| Step | Action |
+|------|--------|
+| VM | Provision Ubuntu VM (≥ 4 vCPU, 12 GB RAM) — see [environment-setup.md](docs/environment-setup.md) |
+| Config | `cp vars.yml.example vars.yml` (+ `hosts.ini`, `config.mk`) — fill `elastic_motlp_endpoint`, `elastic_api_key`, `edot_onboarding_id` |
+| Deploy | `make deploy` |
+| Verify | `make demo-check` |
+| Access | Port-forward on VM + `make demo-tunnel` → http://localhost:8080 |
+
+Telemetry (traces, logs, metrics, Grafana) is live after this step.
+
+### 2. Kibana objects (optional)
+
+Business orders transform, dashboards, alerting rule, RCA workflow, and Agent Builder skills/tools — bundled in one deploy:
+
+```bash
+# vars.yml — add:
+#   rca_notification_email: "you@example.com"
+#   github_* block (if you also want scenario workflows — step 3)
+
+make kibana-deploy
+```
+
+Deploy order inside the script: transform → scenario workflows (if `github_*` set) → RCA workflow → Agent Builder tools/skills → dashboard + alert rule.
+
+Details: **[docs/kibana-lab-objects.md](docs/kibana-lab-objects.md)**
+
+To refresh objects from a reference project (maintainers): `make kibana-export` → commit `kibana/`.
+
+### 3. Demo scenarios (optional)
+
+Remote incidents from Kibana Workflows or GitHub Actions (requires fork, self-hosted runner, GitHub connector):
+
+1. Complete `github_*` in `vars.yml`
+2. Install runner on VM — [demo-scenarios-setup.md](docs/demo-scenarios-setup.md)
+3. `make kibana-deploy` (includes `scripts/workflows/deploy-workflows.sh`) or run that script alone
+4. Test: `make demo-scenario-incident-payment` or trigger from Kibana **Workflows**
+
+### 4. Synthetics (optional)
+
+In-cluster HTTP/TCP monitors via Private Location:
+
+```bash
+# vars.yml — fleet_url, fleet_enrollment_token, synthetics_private_location_name
+make synthetics-setup      # first time
+make synthetics-push       # after editing synthetics/monitors.json
+```
+
+Guide: **[docs/phase2-synthetics.md](docs/phase2-synthetics.md)**
+
+### Quick reference — optional components
+
+| Component | Command / doc |
+|-----------|-----------------|
+| Kibana (orders, RCA, Agent Builder) | `make kibana-deploy` → [kibana-lab-objects.md](docs/kibana-lab-objects.md) |
+| Demo scenarios + Workflows | [demo-scenarios-setup.md](docs/demo-scenarios-setup.md) |
+| Synthetics | `make synthetics-setup` → [phase2-synthetics.md](docs/phase2-synthetics.md) |
+
+Force-update existing Kibana objects: `KIBANA_DEPLOY_OVERWRITE=1 make kibana-deploy`
+
+---
+
 ## Optional: Demo scenarios (remote automation)
 
 Orchestrate incident and recovery scripts on the lab VM from **GitHub Actions** or **Elastic Serverless Workflows**, without inbound access to the VM.
@@ -150,7 +217,8 @@ make synthetics-push       # after editing synthetics/monitors.json
 | `make demo-scenario-<name>` | Run scenario on VM (`incident-payment`, `recover-payment`, `reset-lab`, `oom-pressure`) |
 | `make synthetics-setup` | Deploy Fleet agent + Private Location + push monitors |
 | `make synthetics-deploy` | Deploy `elastic-synthetics-agent` pod only |
-| `make synthetics-configure` | Wait Fleet, create Private Location, push monitors |
+| `make kibana-export` | Export Kibana lab objects from your reference project |
+| `make kibana-deploy` | Deploy optional Kibana objects (dashboard, RCA, Agent Builder) |
 | `make help` | List available targets |
 
 ## Pinned Helm versions
@@ -176,14 +244,17 @@ Configured in `vars.yml` (see `vars.yml.example`):
 │   ├── scenarios/                # Demo scenario scripts (kubectl)
 │   ├── workflows/                # Elastic Workflows YAML + deploy scripts
 │   ├── synthetics/               # Fleet, Private Location, Kibana API push
+│   ├── kibana/                   # Export + deploy Kibana lab objects
 │   └── github/install-runner.sh  # Self-hosted Actions runner setup
 ├── synthetics/
 │   ├── monitors.json             # Synthetics monitor definitions
 │   └── retired-monitors.json     # Optional: names to remove on push
+├── kibana/                 # Exported Kibana artifacts (optional deploy)
 ├── docs/
 │   ├── action-plan.md            # Internal roadmap / status (maintainer)
 │   ├── environment-setup.md      # VM requirements, vars.yml reference
 │   ├── demo-scenarios-setup.md   # Fork, runner, Workflows (full guide)
+│   ├── kibana-lab-objects.md     # Optional dashboard, RCA, Agent Builder
 │   └── phase2-synthetics.md      # Synthetics Private Location setup
 ├── vars.yml.example        # Elastic / Helm configuration template
 ├── hosts.ini.example       # Ansible inventory template
@@ -198,16 +269,7 @@ Configured in `vars.yml` (see `vars.yml.example`):
 - **Smoke tests** fail on OOMKilled or non-Ready pods, not only HTTP checks.
 - **Synthetics Private Locations** on Elastic 9.4.x: creating new locations may fail; reuse an existing location (see [phase2-synthetics.md](docs/phase2-synthetics.md)).
 
-## Optional components
-
-| Component | What it adds | Setup |
-|-----------|--------------|-------|
-| **Core lab** | OTel Demo + EDOT + Grafana/PRW | `make deploy` (above) |
-| **Demo scenarios** | Remote incidents via GitHub / Kibana Workflows | [demo-scenarios-setup.md](docs/demo-scenarios-setup.md) |
-| **Synthetics** | In-cluster HTTP/TCP monitors | [phase2-synthetics.md](docs/phase2-synthetics.md) |
-| **Business orders** | Orders index + Kibana dashboard | `scripts/elasticsearch/create-orders-transform.sh` |
-
-Maintainer roadmap and historical phase tracking: [docs/action-plan.md](docs/action-plan.md).
+Maintainer roadmap: [docs/action-plan.md](docs/action-plan.md).
 
 ## License
 

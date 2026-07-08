@@ -134,6 +134,14 @@ Logic lives in [`group_vars/all.yml`](../group_vars/all.yml). Legacy names `elas
 
 Also: install the **GitHub Actions self-hosted runner** on the VM (`scripts/github/install-runner.sh`). See [demo-scenarios-setup.md](demo-scenarios-setup.md).
 
+#### Optional — Kibana lab objects (dashboard, RCA, Agent Builder)
+
+| Variable | Purpose |
+|----------|---------|
+| `rca_notification_email` | Email recipient in RCA workflow (substituted at deploy; not stored in git) |
+
+See [kibana-lab-objects.md](kibana-lab-objects.md). Requires exported artifacts under `kibana/` (maintainer runs `make kibana-export`).
+
 #### Optional — Synthetics Private Location
 
 | Variable | Purpose |
@@ -183,4 +191,8 @@ The playbooks do **not** create or configure the Elastic project — only the in
 4. On VM: start `kubectl port-forward` to `frontend-proxy`.
 5. From workstation: `make demo-tunnel` → open `http://localhost:8080`.
 
-Add optional Synthetics or demo scenarios when you need them.
+**Optional add-ons** (see [README — Deploying a new lab](../README.md#deploying-a-new-lab)):
+
+- `make kibana-deploy` — orders transform, dashboard, RCA, Agent Builder
+- Demo scenarios — [demo-scenarios-setup.md](demo-scenarios-setup.md)
+- `make synthetics-setup` — [phase2-synthetics.md](phase2-synthetics.md)
