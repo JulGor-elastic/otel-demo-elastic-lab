@@ -1,7 +1,7 @@
 version: "1"
-name: NEW - Automatic AI-based RCA (Human in the Loop)
+name: Automatic AI-based RCA (Human in the Loop)
 description: |
-  Notify launch operations team when a service is having more failed transactions than expected. Triggered by alert rules — runs AI root cause analysis, create creates a case with RCA findings and communicate the findings to the SRE team through email.
+  Notify launch operations team when a service is having more failed transactions than expected. Triggered by alert rules — runs AI root cause analysis, creates a case with RCA findings, and communicates the findings to the SRE team through email.
 enabled: true
 triggers:
   - type: alert
@@ -10,7 +10,7 @@ steps:
     type: ai.agent
     with:
       message: |-
-        You are an expert SRE engineer specialized in root cause analysis (RCA). Your task is to analyze failed transaction data, error logs, and service metrics to identify the root cause of failures. Generate a structured, clear, and actionable report in Spanish.
+        You are an expert SRE engineer specialized in root cause analysis (RCA). Your task is to analyze failed transaction data, error logs, and service metrics to identify the root cause of failures. Generate a structured, clear, and actionable report.
 
         ## Alert Context
         - **Rule name:** {{ event.alerts[0].kibana.alert.rule.name }}
@@ -35,13 +35,13 @@ steps:
         4. All timestamps MUST be converted from UTC to CET.
 
         The report MUST strictly contain the following sections in this exact order:
-        1. **Resumen Ejecutivo**: Brief description of the incident.
-        2. **Servicios Afectados**: List of services with failed transactions and their impact.
-        3. **Causa Raíz Identificada**: Detailed root cause analysis based on the available data.
+        1. **Executive Summary**: Brief description of the incident.
+        2. **Affected Services**: List of services with failed transactions and their impact.
+        3. **Root Cause Analysis**: Detailed root cause analysis based on the available data.
         4. **Timeline**: Sequence of events that led to the failure.
-        5. **Impacto**: Quantification of the impact (number of failed transactions, affected services, duration).
-        6. **Acciones de Remediación**: Recommended steps to resolve the immediate problem.
-        7. **Acciones Preventivas**: Recommendations to avoid recurrence.
+        5. **Impact**: Quantification of the impact (number of failed transactions, affected services, duration).
+        6. **Remediation**: Recommended steps to resolve the immediate problem.
+        7. **Preventive Actions**: Recommendations to avoid recurrence.
     timeout: 10m
   - name: format_final_report
     type: console
@@ -50,8 +50,8 @@ steps:
         {{ steps.run_rca.output.message }}
 
         ---
-        [👉 Abrir Service Overview en Elastic APM](/app/apm/services/{{ event.alerts[0].service.name }}/overview)
-        [🚨 Ver Alerta en Elastic](/app/observability/alerts/{{ event.alerts[0].kibana.alert.uuid }})
+        [👉 Open Service Overview in Elastic APM](/app/apm/services/{{ event.alerts[0].service.name }}/overview)
+        [🚨 View Alert in Elastic](/app/observability/alerts/{{ event.alerts[0].kibana.alert.uuid }})
   - name: create_case
     type: cases.createCase
     with:
